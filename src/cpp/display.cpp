@@ -9,7 +9,7 @@ Display::Display(void *parentHandle, int scaleFactor, std::string &sourceName) {
     this->scaleFactor = scaleFactor;
 
     // create window for display
-    this->windowHandle = createDisplayWindow(parentHandle);
+    this->windowHandle = createDisplayWindow(this->parentHandle);
 
     // create display
     gs_init_data gs_init_data = {};
@@ -20,9 +20,9 @@ Display::Display(void *parentHandle, int scaleFactor, std::string &sourceName) {
     gs_init_data.format = GS_RGBA;
     gs_init_data.zsformat = GS_ZS_NONE;
 #ifdef _WIN32
-    gs_init_data.window.hwnd = windowHandle;
+    gs_init_data.window.hwnd = this->windowHandle;
 #elif __APPLE__
-    gs_init_data.window.view = static_cast<objc_object *>(windowHandle);
+    gs_init_data.window.view = static_cast<objc_object *>(this->windowHandle);
 #endif
     obs_display = obs_display_create(&gs_init_data, 0x0);
 
@@ -51,12 +51,14 @@ Display::~Display() {
 }
 
 void Display::move(int x, int y, int width, int height) {
+    moveWindow(windowHandle, x, y, width, height);
+    if (this->width != width && this->height != height) {
+        obs_display_resize(obs_display, width * scaleFactor, height * scaleFactor);
+    }
     this->x = x;
     this->y = y;
     this->width = width;
     this->height = height;
-    moveWindow(windowHandle, x, y, width, height);
-    obs_display_resize(obs_display, width * scaleFactor, height * scaleFactor);
 }
 
 void Display::displayCallback(void *displayPtr, uint32_t cx, uint32_t cy) {
