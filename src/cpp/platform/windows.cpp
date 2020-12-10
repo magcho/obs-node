@@ -54,14 +54,14 @@ void registerDisplayWindowClass() {
 }
 
 void *createDisplayWindow(void *parentHandle) {
-    DWORD windowStyle = windowStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST;
+    DWORD windowStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE;
     HWND parentHandleHWND = *static_cast<HWND*>(parentHandle);
     registerDisplayWindowClass();
     HWND windowHandle = CreateWindowEx(
             windowStyle,
             DISPLAY_WINDOW_CLASS,
             "Display Window",
-            WS_VISIBLE | WS_POPUP | WS_CHILD,
+            WS_VISIBLE | WS_CHILD,
             0, 0, 1, 1,
             parentHandleHWND,
             NULL,
@@ -77,21 +77,21 @@ void *createDisplayWindow(void *parentHandle) {
 
 void destroyWindow(void *windowHandle) {
     HWND handle = reinterpret_cast<HWND>(windowHandle);
-    DestroyWindow(handle);
+    BOOL result = DestroyWindow(handle);
+    if (!result) {
+        throwLastErrorMessage();
+    }
 }
 
 void moveWindow(void *windowHandle, int x, int y, int width, int height) {
     HWND handle = reinterpret_cast<HWND>(windowHandle);
-    BOOL result = SetWindowPos(
+    SetWindowPos(
             handle,
             NULL,
             x,
             y,
             width,
             height,
-            SWP_NOCOPYBITS | SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW
+            SWP_NOCOPYBITS | SWP_NOACTIVATE
     );
-    if(result) {
-        RedrawWindow( handle, NULL, NULL, RDW_ERASE | RDW_INVALIDATE);
-    }
 }
