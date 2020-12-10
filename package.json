@@ -1,7 +1,7 @@
 {
   "name": "obs-node",
   "version": "1.0.23",
-  "repository": "https://github.com/Mengli619/obs-node.git",
+  "repository": "https://github.com/BICBT/obs-node.git",
   "main": "dist/index.js",
   "scripts": {
     "prepare": "rimraf dist && tsc --declaration",
