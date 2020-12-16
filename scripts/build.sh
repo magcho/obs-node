@@ -30,7 +30,7 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
   # Clone obs studio
   if [[ ! -d "${OBS_STUDIO_DIR}" ]]; then
     pushd "${OBS_STUDIO_BUILD_DIR}"
-    git clone --recursive -b ${OBS_STUDIO_VERSION} --single-branch https://github.com/MengLi619/obs-studio.git "obs-studio-${OBS_STUDIO_VERSION}"
+    git clone --recursive -b ${OBS_STUDIO_VERSION} --single-branch https://github.com/BICBT/obs-studio.git "obs-studio-${OBS_STUDIO_VERSION}"
     popd
   fi
 
