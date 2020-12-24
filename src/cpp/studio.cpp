@@ -1,6 +1,9 @@
 #include "studio.h"
 #include <filesystem>
+#include <mutex>
 #include <obs.h>
+
+std::mutex scenes_mtx;
 
 Studio::Studio(std::string &obsPath, Settings *settings)
         : obsPath(obsPath),
@@ -226,7 +229,9 @@ void Studio::shutdown() {
 }
 
 void Studio::addScene(std::string &sceneId) {
-    auto scene = new Scene(sceneId, settings);
+    std::unique_lock<std::mutex> lock(scenes_mtx);
+    int index = scenes.size();
+    auto scene = new Scene(sceneId, index, settings);
     scenes[sceneId] = scene;
 }
 
@@ -262,7 +267,8 @@ void Studio::restartSource(std::string &sceneId, std::string &sourceId) {
     scene->restartSource(sourceId);
 }
 
-void Studio::addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height) {
+void
+Studio::addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height) {
     auto found = dsks.find(id);
     if (found != dsks.end()) {
         throw std::logic_error("Dsk " + id + " already existed");
@@ -282,7 +288,8 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
         return;
     }
 
-    blog(LOG_INFO, "Start transition: %s -> %s", (currentScene ? currentScene->getId().c_str() : ""), next->getId().c_str());
+    blog(LOG_INFO, "Start transition: %s -> %s", (currentScene ? currentScene->getId().c_str() : ""),
+         next->getId().c_str());
 
     // Find or create transition
     auto it = transitions.find(transitionType);
@@ -323,7 +330,7 @@ void Studio::loadModule(const std::string &binPath, const std::string &dataPath)
     }
 }
 
-const std::map<std::string, Scene*>& Studio::getScenes() {
+const std::map<std::string, Scene *> &Studio::getScenes() {
     return scenes;
 }
 
@@ -360,6 +367,30 @@ Scene *Studio::findScene(std::string &sceneId) {
         return nullptr;
     }
     return it->second;
+}
+
+bool Studio::getAudioWithVideo() {
+    return obs_get_audio_with_video();
+}
+
+void Studio::setAudioWithVideo(bool audioWithVideo) {
+    obs_set_audio_with_video(audioWithVideo);
+}
+
+void Studio::setSourceVolume(std::string &sceneId, std::string &sourceId, float volume) {
+    auto it = scenes.find(sceneId);
+    if (it == scenes.end()) {
+        throw std::invalid_argument("Can't find scene " + sceneId);
+    }
+    it->second->setSourceVolume(sourceId, volume);
+}
+
+void Studio::setSourceAudioLock(std::string &sceneId, std::string &sourceId, bool audioLock) {
+    auto it = scenes.find(sceneId);
+    if (it == scenes.end()) {
+        throw std::invalid_argument("Can't find scene " + sceneId);
+    }
+    it->second->setSourceAudioLock(sourceId, audioLock);
 }
 
 std::string Studio::getObsBinPath() {

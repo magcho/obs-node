@@ -90,29 +90,9 @@ void Display::displayCallback(void *displayPtr, uint32_t cx, uint32_t cy) {
     gs_ortho(0.0f, (float)sourceW, 0.0f, (float)sourceH, -1, 1);
 
     // Source Rendering
-    obs_source_t *source;
     if (dp->obs_source) {
         obs_source_video_render(dp->obs_source);
-        /* If we want to draw guidelines, we need a scene,
-         * not a transition. This may not be a scene which
-         * we'll check later. */
-        if (obs_source_get_type(dp->obs_source) == OBS_SOURCE_TYPE_TRANSITION) {
-            source = obs_transition_get_active_source(dp->obs_source);
-        } else {
-            source = dp->obs_source;
-            obs_source_addref(source);
-        }
-    } else {
-        obs_render_main_texture();
-
-        /* Here we assume that channel 0 holds the primary transition.
-        * We also assume that the active source within that transition is
-        * the scene that we need */
-        obs_source_t *transition = obs_get_output_source(0);
-        source = obs_transition_get_active_source(transition);
-        obs_source_release(transition);
     }
 
-    obs_source_release(source);
     gs_projection_pop();
 }

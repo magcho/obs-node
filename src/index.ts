@@ -89,6 +89,26 @@ declare namespace obs {
         output?: OutputSettings;
     }
 
+    export type VolmeterCallback = (
+        sceneId: string,
+        sourceId: string,
+        channels: number,
+        magnitude: number[],
+        peak: number[],
+        input_peak: number[]) => void;
+
+    export interface SourceAudioMixer {
+        sceneId: string;
+        sourceId: string;
+        volume: number;
+        audioLock: boolean;
+    }
+
+    export interface AudioMixer {
+        audioWithVideo: boolean;
+        mixers: SourceAudioMixer[];
+    }
+
     export interface ObsNode {
         setObsPath(obsPath: string): void
         startup(settings: Settings): void;
@@ -97,13 +117,16 @@ declare namespace obs {
         addSource(sceneId: string, sourceId: string, sourceType: SourceType, sourceUrl: string): void;
         updateSource(sceneId: string, sourceId: string, sourceUrl: string): void;
         muteSource(sceneId: string, sourceId: string, mute: boolean): void;
-        restartSource(sceneId: string, sourceId: string);
+        restartSource(sceneId: string, sourceId: string): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
         getScenes(): Scene[];
-        createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string);
-        destroyDisplay(name: string);
-        moveDisplay(name: string, x: number, y: number, width: number, height: number);
+        createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
+        destroyDisplay(name: string): void;
+        moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
         addDSK(id: string, position: Position, url: string, left: number, top: number, width: number, height: number): void;
+        addVolmeterCallback(callback: VolmeterCallback);
+        getAudioMixer(): AudioMixer;
+        setAudioMixer(audioMixer: AudioMixer);
     }
 }
 
