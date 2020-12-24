@@ -67,19 +67,49 @@ const sources: Source[] = [
         sourceId: 'source2',
         sourceType: 'MediaSource',
         sourceUrl: 'rtmp://host.docker.internal/live/source2',
+    },
+    {
+        sceneId: 'scene3',
+        sourceId: 'source3',
+        sourceType: 'MediaSource',
+        sourceUrl: 'rtmp://host.docker.internal/live/source3',
     }
 ];
 
 obs.startup(settings);
+// obs.addVolmeterCallback((sceneId: string,
+//                          sourceId: string,
+//                          channels: number,
+//                          magnitude: number[],
+//                          peak: number[],
+//                          input_peak: number[]) => {
+//     console.log(sceneId, sourceId, channels, magnitude, peak, input_peak);
+// });
+
 sources.forEach(s => {
     obs.addScene(s.sceneId);
     obs.addSource(s.sceneId, s.sourceId, s.sourceType, s.sourceUrl);
 });
+
 dsks.forEach(dsk => {
    obs.addDSK(dsk.id, dsk.position as obs.Position, dsk.url, dsk.left, dsk.top, dsk.width, dsk.height);
 });
 
+// set audio mixer
+obs.setAudioMixer({
+    audioWithVideo: true,
+    mixers: [
+        {
+            sceneId: 'scene3',
+            sourceId: 'source3',
+            volume: 0,
+            audioLock: true,
+        }
+    ]
+});
+
 console.log(`Obs scenes: ${JSON.stringify(obs.getScenes())}`);
+console.log(`Audio mixer: ${JSON.stringify(obs.getAudioMixer())}`);
 
 const readLine = readline.createInterface({
     input: process.stdin,

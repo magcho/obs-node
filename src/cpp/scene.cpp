@@ -2,8 +2,9 @@
 #include "dsk.h"
 #include <map>
 
-Scene::Scene(std::string &id, Settings *settings) :
+Scene::Scene(std::string &id, int index, Settings *settings) :
         id(id),
+        index(index),
         settings(settings),
         obs_scene(createObsScene(id)),
         obs_output_scene(nullptr) {
@@ -18,8 +19,12 @@ Scene::~Scene() {
     }
 }
 
+const std::map<std::string, Source*> &Scene::getSources() {
+    return sources;
+}
+
 void Scene::addSource(std::string &sourceId, SourceType sourceType, std::string &sourceUrl) {
-    auto source = new Source(sourceId, sourceType, sourceUrl, obs_scene, settings);
+    auto source = new Source(sourceId, sourceType, sourceUrl, id, index, obs_scene, settings);
     sources[sourceId] = source;
 
     // Start the source as soon as it's added.
@@ -123,9 +128,25 @@ Napi::Object Scene::getNapiScene(const Napi::Env &env) {
     auto napiSources = Napi::Array::New(env, sources.size());
     int i = 0;
     for (auto &source : sources) {
-        napiSources[i++] = source.second->getNapiSource(env);
+        napiSources[i++] = source.second->getSource(env);
     }
     napiScene.Set("id", id);
     napiScene.Set("sources", napiSources);
     return napiScene;
+}
+
+void Scene::setSourceVolume(std::string &sourceId, float volume) {
+    auto it = sources.find(sourceId);
+    if (it == sources.end()) {
+        throw std::invalid_argument("Can't find source " + sourceId);
+    }
+    it->second->setVolume(volume);
+}
+
+void Scene::setSourceAudioLock(std::string &sourceId, float audioLock) {
+    auto it = sources.find(sourceId);
+    if (it == sources.end()) {
+        throw std::invalid_argument("Can't find source " + sourceId);
+    }
+    it->second->setAudioLock(audioLock);
 }

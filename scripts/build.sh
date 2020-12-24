@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-OBS_STUDIO_VERSION=26.0.2-patch2
+OBS_STUDIO_VERSION=26.0.2-patch3
 MAXOS_DEPS_VERSION=2020-08-30
 
 BASE_DIR="$(pwd)"
