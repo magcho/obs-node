@@ -20,15 +20,15 @@ public:
 
     void updateSource(std::string &sourceId, std::string &sourceUrl);
 
-    void muteSource(std::string &sourceId, bool mute);
-
     void restartSource(std::string &sourceId);
 
     obs_scene_t *getObsOutputScene(std::map<std::string, Dsk*> &dsks);
 
     void setSourceVolume(std::string &sourceId, float volume);
 
-    void setSourceAudioLock(std::string &sourceId, float output);
+    void setSourceAudioLock(std::string &sourceId, bool audioLock);
+
+    void setSourceMonitor(std::string &sourceId, bool monitor);
 
     Napi::Object getNapiScene(const Napi::Env &env);
 

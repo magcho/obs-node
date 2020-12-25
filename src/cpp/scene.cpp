@@ -39,14 +39,6 @@ void Scene::updateSource(std::string &sourceId, std::string &sourceUrl) {
     it->second->updateUrl(sourceUrl);
 }
 
-void Scene::muteSource(std::string &sourceId, bool mute) {
-    auto it = sources.find(sourceId);
-    if (it == sources.end()) {
-        throw std::invalid_argument("Can't find source " + sourceId);
-    }
-    it->second->mute(mute);
-}
-
 void Scene::restartSource(std::string &sourceId) {
     auto it = sources.find(sourceId);
     if (it == sources.end()) {
@@ -143,10 +135,18 @@ void Scene::setSourceVolume(std::string &sourceId, float volume) {
     it->second->setVolume(volume);
 }
 
-void Scene::setSourceAudioLock(std::string &sourceId, float audioLock) {
+void Scene::setSourceAudioLock(std::string &sourceId, bool audioLock) {
     auto it = sources.find(sourceId);
     if (it == sources.end()) {
         throw std::invalid_argument("Can't find source " + sourceId);
     }
     it->second->setAudioLock(audioLock);
+}
+
+void Scene::setSourceMonitor(std::string &sourceId, bool monitor) {
+    auto it = sources.find(sourceId);
+    if (it == sources.end()) {
+        throw std::invalid_argument("Can't find source " + sourceId);
+    }
+    it->second->setMonitor(monitor);
 }

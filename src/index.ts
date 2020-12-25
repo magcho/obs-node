@@ -106,6 +106,7 @@ declare namespace obs {
 
     export interface AudioMixer {
         audioWithVideo: boolean;
+        masterVolume: number;
         mixers: SourceAudioMixer[];
     }
 
@@ -116,7 +117,6 @@ declare namespace obs {
         addScene(sceneId: string): string;
         addSource(sceneId: string, sourceId: string, sourceType: SourceType, sourceUrl: string): void;
         updateSource(sceneId: string, sourceId: string, sourceUrl: string): void;
-        muteSource(sceneId: string, sourceId: string, mute: boolean): void;
         restartSource(sceneId: string, sourceId: string): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
         getScenes(): Scene[];
@@ -127,6 +127,7 @@ declare namespace obs {
         addVolmeterCallback(callback: VolmeterCallback);
         getAudioMixer(): AudioMixer;
         setAudioMixer(audioMixer: AudioMixer);
+        setSourceMonitor(sceneId: string, sourceId: string, monitor: boolean): void;
     }
 }
 

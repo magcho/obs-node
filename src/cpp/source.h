@@ -29,13 +29,13 @@ public:
 
     void updateUrl(std::string &sourceUrl);
 
-    void mute(bool mute);
-
     float getVolume();
     void setVolume(float volume);
 
     bool getAudioLock();
     void setAudioLock(bool audioLock);
+
+    void setMonitor(bool monitor);
 
     Napi::Object getSource(const Napi::Env &env);
 
