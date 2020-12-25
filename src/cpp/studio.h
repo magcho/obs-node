@@ -21,8 +21,6 @@ public:
 
     void updateSource(std::string &sceneId, std::string &sourceId, std::string &sourceUrl);
 
-    void muteSource(std::string &sceneId, std::string &sourceId, bool mute);
-
     void restartSource(std::string &sceneId, std::string &sourceId);
 
     void addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height);
@@ -41,9 +39,15 @@ public:
 
     void setAudioWithVideo(bool audioWithVideo);
 
+    float getMasterVolume();
+
+    void setMasterVolume(float volume);
+
     void setSourceVolume(std::string &sceneId, std::string &sourceId, float volume);
 
-    void setSourceAudioLock(std::string &sceneId, std::string &sourceId, bool output);
+    void setSourceAudioLock(std::string &sceneId, std::string &sourceId, bool audioLock);
+
+    void setSourceMonitor(std::string &sceneId, std::string &sourceId, bool monitor);
 
 private:
     static void loadModule(const std::string &binPath, const std::string &dataPath);

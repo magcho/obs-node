@@ -251,14 +251,6 @@ void Studio::updateSource(std::string &sceneId, std::string &sourceId, std::stri
     it->second->updateSource(sourceId, sourceUrl);
 }
 
-void Studio::muteSource(std::string &sceneId, std::string &sourceId, bool mute) {
-    auto it = scenes.find(sceneId);
-    if (it == scenes.end()) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
-    it->second->muteSource(sourceId, mute);
-}
-
 void Studio::restartSource(std::string &sceneId, std::string &sourceId) {
     auto scene = findScene(sceneId);
     if (!scene) {
@@ -377,6 +369,15 @@ void Studio::setAudioWithVideo(bool audioWithVideo) {
     obs_set_audio_with_video(audioWithVideo);
 }
 
+float Studio::getMasterVolume() {
+    return obs_mul_to_db(obs_get_master_volume());
+}
+
+void Studio::setMasterVolume(float volume) {
+    // input volume is dB
+    obs_set_master_volume(obs_db_to_mul(volume));
+}
+
 void Studio::setSourceVolume(std::string &sceneId, std::string &sourceId, float volume) {
     auto it = scenes.find(sceneId);
     if (it == scenes.end()) {
@@ -391,6 +392,14 @@ void Studio::setSourceAudioLock(std::string &sceneId, std::string &sourceId, boo
         throw std::invalid_argument("Can't find scene " + sceneId);
     }
     it->second->setSourceAudioLock(sourceId, audioLock);
+}
+
+void Studio::setSourceMonitor(std::string &sceneId, std::string &sourceId, bool monitor) {
+    auto it = scenes.find(sceneId);
+    if (it == scenes.end()) {
+        throw std::invalid_argument("Can't find scene " + sceneId);
+    }
+    it->second->setSourceMonitor(sourceId, monitor);
 }
 
 std::string Studio::getObsBinPath() {

@@ -139,15 +139,6 @@ void Source::updateUrl(std::string &sourceUrl) {
     start();
 }
 
-void Source::mute(bool mute) {
-    if (obs_source) {
-        obs_source_set_muted(obs_source, mute);
-        if (!mute && obs_source_get_monitoring_type(obs_source) == OBS_MONITORING_TYPE_NONE) {
-            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_MONITOR_ONLY);
-        }
-    }
-}
-
 float Source::getVolume() {
     return obs_fader ? obs_fader_get_db(obs_fader) : 0;
 }
@@ -164,6 +155,16 @@ bool Source::getAudioLock() {
 void Source::setAudioLock(bool audioLock) {
     if (obs_source) {
         obs_source_set_audio_lock(obs_source, audioLock);
+    }
+}
+
+void Source::setMonitor(bool monitor) {
+    if (obs_source) {
+        if (monitor) {
+            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_MONITOR_ONLY);
+        } else {
+            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_NONE);
+        }
     }
 }
 
