@@ -13,36 +13,46 @@ class Source {
 
 public:
     static SourceType getSourceType(const std::string &sourceType);
+    static std::string getSourceTypeString(SourceType sourceType);
 
     Source(std::string &id,
-        SourceType type,
-        std::string &url,
-        std::string &sceneId,
-        int sceneIndex,
-        obs_scene_t *obs_scene,
-        Settings *settings
+           SourceType type,
+           std::string &url,
+           std::string &sceneId,
+           int sceneIndex,
+           obs_scene_t *obs_scene,
+           Settings *settings
     );
 
     void start();
 
     void stop();
 
-    void updateUrl(std::string &sourceUrl);
+    void restart();
 
-    float getVolume();
+    std:: string getId();
+
+    std:: string getSceneId();
+
+    SourceType getType();
+
+    void setUrl(const std::string &sourceUrl);
+
+    std::string getUrl();
+
     void setVolume(float volume);
 
-    bool getAudioLock();
+    float getVolume();
+
     void setAudioLock(bool audioLock);
 
-    void setMonitor(bool monitor);
+    bool getAudioLock();
 
-    Napi::Object getSource(const Napi::Env &env);
+    void setAudioMonitor(bool audioMonitor);
 
-    Napi::Object getMixer(const Napi::Env &env);
+    bool getAudioMonitor();
 
 private:
-    static std::string getSourceTypeString(SourceType sourceType);
     static void obs_volmeter_callback(
             void *param,
             const float magnitude[MAX_AUDIO_CHANNELS],

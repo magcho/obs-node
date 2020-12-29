@@ -19,33 +19,12 @@ Scene::~Scene() {
     }
 }
 
-const std::map<std::string, Source*> &Scene::getSources() {
-    return sources;
-}
-
 void Scene::addSource(std::string &sourceId, SourceType sourceType, std::string &sourceUrl) {
     auto source = new Source(sourceId, sourceType, sourceUrl, id, index, obs_scene, settings);
     sources[sourceId] = source;
 
     // Start the source as soon as it's added.
     source->start();
-}
-
-void Scene::updateSource(std::string &sourceId, std::string &sourceUrl) {
-    auto it = sources.find(sourceId);
-    if (it == sources.end()) {
-        throw std::invalid_argument("Can't find source " + sourceId);
-    }
-    it->second->updateUrl(sourceUrl);
-}
-
-void Scene::restartSource(std::string &sourceId) {
-    auto it = sources.find(sourceId);
-    if (it == sources.end()) {
-        throw std::invalid_argument("Can't find source " + sourceId);
-    }
-    it->second->stop();
-    it->second->start();
 }
 
 obs_scene_t *Scene::createObsScene(std::string &sceneId) {
@@ -56,7 +35,7 @@ obs_scene_t *Scene::createObsScene(std::string &sceneId) {
     return scene;
 }
 
-obs_scene_t *Scene::getObsOutputScene(std::map<std::string, Dsk*> &dsks) {
+obs_scene_t *Scene::getObsOutputScene(std::map<std::string, Dsk *> &dsks) {
     if (obs_output_scene) {
         obs_scene_release(obs_output_scene);
         obs_output_scene = nullptr;
@@ -75,8 +54,8 @@ obs_scene_t *Scene::getObsOutputScene(std::map<std::string, Dsk*> &dsks) {
 
         // set position
         struct vec2 pos = {};
-        pos.x = (float)dsk.second->getLeft();
-        pos.y = (float)dsk.second->getTop();
+        pos.x = (float) dsk.second->getLeft();
+        pos.y = (float) dsk.second->getTop();
         obs_sceneitem_set_pos(obs_scene_item, &pos);
 
         // set align
@@ -103,8 +82,8 @@ obs_scene_t *Scene::getObsOutputScene(std::map<std::string, Dsk*> &dsks) {
 
         // set size
         struct vec2 bounds = {};
-        bounds.x = (float)dsk.second->getWidth();
-        bounds.y = (float)dsk.second->getHeight();
+        bounds.x = (float) dsk.second->getWidth();
+        bounds.y = (float) dsk.second->getHeight();
         obs_sceneitem_set_bounds_type(obs_scene_item, OBS_BOUNDS_SCALE_INNER);
         obs_sceneitem_set_bounds(obs_scene_item, &bounds);
 
@@ -115,38 +94,10 @@ obs_scene_t *Scene::getObsOutputScene(std::map<std::string, Dsk*> &dsks) {
     return obs_output_scene;
 }
 
-Napi::Object Scene::getNapiScene(const Napi::Env &env) {
-    auto napiScene = Napi::Object::New(env);
-    auto napiSources = Napi::Array::New(env, sources.size());
-    int i = 0;
-    for (auto &source : sources) {
-        napiSources[i++] = source.second->getSource(env);
-    }
-    napiScene.Set("id", id);
-    napiScene.Set("sources", napiSources);
-    return napiScene;
-}
-
-void Scene::setSourceVolume(std::string &sourceId, float volume) {
+Source *Scene::findSource(std::string &sourceId) {
     auto it = sources.find(sourceId);
     if (it == sources.end()) {
         throw std::invalid_argument("Can't find source " + sourceId);
     }
-    it->second->setVolume(volume);
-}
-
-void Scene::setSourceAudioLock(std::string &sourceId, bool audioLock) {
-    auto it = sources.find(sourceId);
-    if (it == sources.end()) {
-        throw std::invalid_argument("Can't find source " + sourceId);
-    }
-    it->second->setAudioLock(audioLock);
-}
-
-void Scene::setSourceMonitor(std::string &sourceId, bool monitor) {
-    auto it = sources.find(sourceId);
-    if (it == sources.end()) {
-        throw std::invalid_argument("Can't find source " + sourceId);
-    }
-    it->second->setMonitor(monitor);
+    return it->second;
 }

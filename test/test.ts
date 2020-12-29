@@ -95,21 +95,9 @@ dsks.forEach(dsk => {
    obs.addDSK(dsk.id, dsk.position as obs.Position, dsk.url, dsk.left, dsk.top, dsk.width, dsk.height);
 });
 
-// set audio mixer
-obs.setAudioMixer({
-    audioWithVideo: true,
-    mixers: [
-        {
-            sceneId: 'scene3',
-            sourceId: 'source3',
-            volume: 0,
-            audioLock: true,
-        }
-    ]
-});
-
-console.log(`Obs scenes: ${JSON.stringify(obs.getScenes())}`);
-console.log(`Audio mixer: ${JSON.stringify(obs.getAudioMixer())}`);
+console.log(`Source 1: ${JSON.stringify(obs.getSource(sources[0].sceneId, sources[0].sourceId))}`);
+console.log(`Source 2: ${JSON.stringify(obs.getSource(sources[1].sceneId, sources[1].sourceId))}`);
+console.log(`Audio: ${JSON.stringify(obs.getAudio())}`);
 
 const readLine = readline.createInterface({
     input: process.stdin,

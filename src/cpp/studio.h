@@ -19,15 +19,11 @@ public:
 
     void addSource(std::string &sceneId, std::string &sourceId, SourceType sourceType, std::string &sourceUrl);
 
-    void updateSource(std::string &sceneId, std::string &sourceId, std::string &sourceUrl);
-
-    void restartSource(std::string &sceneId, std::string &sourceId);
+    Source *findSource(std::string &sceneId, std::string &sourceId);
 
     void addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height);
 
     void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs);
-
-    const std::map<std::string, Scene *> &getScenes();
 
     void createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId);
 
@@ -42,12 +38,6 @@ public:
     float getMasterVolume();
 
     void setMasterVolume(float volume);
-
-    void setSourceVolume(std::string &sceneId, std::string &sourceId, float volume);
-
-    void setSourceAudioLock(std::string &sceneId, std::string &sourceId, bool audioLock);
-
-    void setSourceMonitor(std::string &sceneId, std::string &sourceId, bool monitor);
 
 private:
     static void loadModule(const std::string &binPath, const std::string &dataPath);
