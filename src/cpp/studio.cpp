@@ -230,7 +230,7 @@ void Studio::shutdown() {
 
 void Studio::addScene(std::string &sceneId) {
     std::unique_lock<std::mutex> lock(scenes_mtx);
-    int index = scenes.size();
+    int index = (int)scenes.size();
     auto scene = new Scene(sceneId, index, settings);
     scenes[sceneId] = scene;
 }

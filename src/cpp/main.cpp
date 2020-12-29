@@ -199,13 +199,13 @@ Napi::Value addVolmeterCallback(const Napi::CallbackInfo &info) {
             Napi::Array peak = Napi::Array::New(env);
             Napi::Array input_peak = Napi::Array::New(env);
             for (size_t i = 0; i < data->channels; i++) {
-                magnitude.Set(i, Napi::Number::New(env, data->magnitude[i]));
+                magnitude.Set((int)i, Napi::Number::New(env, data->magnitude[i]));
             }
             for (size_t i = 0; i < data->channels; i++) {
-                peak.Set(i, Napi::Number::New(env, data->peak[i]));
+                peak.Set((int)i, Napi::Number::New(env, data->peak[i]));
             }
             for (size_t i = 0; i < data->channels; i++) {
-                input_peak.Set(i, Napi::Number::New(env, data->input_peak[i]));
+                input_peak.Set((int)i, Napi::Number::New(env, data->input_peak[i]));
             }
             jsCallback.Call({
                 Napi::String::New(env, data->sceneId),
