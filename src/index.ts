@@ -30,15 +30,21 @@ declare namespace obs {
 
     export type TransitionType = 'cut_transition' | 'fade_transition' | 'swipe_transition' | 'slide_transition';
 
-    export interface Scene {
-        id: string;
-        source: Source[];
-    }
-
     export interface Source {
         id: string;
+        sceneId: string;
         type: SourceType;
         url: string;
+        volume: number;
+        audioLock: boolean;
+        audioMonitor: boolean;
+    }
+
+    export interface UpdateSourceRequest {
+        url?: string;
+        volume?: number;
+        audioLock?: boolean;
+        audioMonitor?: boolean;
     }
 
     export interface VideoSettings {
@@ -97,17 +103,14 @@ declare namespace obs {
         peak: number[],
         input_peak: number[]) => void;
 
-    export interface SourceAudioMixer {
-        sceneId: string;
-        sourceId: string;
-        volume: number;
-        audioLock: boolean;
+    export interface Audio {
+        masterVolume: number;
+        audioWithVideo: boolean;
     }
 
-    export interface AudioMixer {
-        audioWithVideo: boolean;
-        masterVolume: number;
-        mixers: SourceAudioMixer[];
+    export interface UpdateAudioRequest {
+        masterVolume?: number;
+        audioWithVideo?: boolean;
     }
 
     export interface ObsNode {
@@ -116,18 +119,17 @@ declare namespace obs {
         shutdown(): void;
         addScene(sceneId: string): string;
         addSource(sceneId: string, sourceId: string, sourceType: SourceType, sourceUrl: string): void;
-        updateSource(sceneId: string, sourceId: string, sourceUrl: string): void;
+        getSource(sceneId: string, sourceId: string): Source;
+        updateSource(sceneId: string, sourceId: string, request: UpdateSourceRequest): void;
         restartSource(sceneId: string, sourceId: string): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
-        getScenes(): Scene[];
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
         destroyDisplay(name: string): void;
         moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
         addDSK(id: string, position: Position, url: string, left: number, top: number, width: number, height: number): void;
-        addVolmeterCallback(callback: VolmeterCallback);
-        getAudioMixer(): AudioMixer;
-        setAudioMixer(audioMixer: AudioMixer);
-        setSourceMonitor(sceneId: string, sourceId: string, monitor: boolean): void;
+        addVolmeterCallback(callback: VolmeterCallback): void;
+        getAudio(): Audio;
+        updateAudio(request: UpdateAudioRequest): void;
     }
 }
 

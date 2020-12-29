@@ -11,6 +11,17 @@ SourceType Source::getSourceType(const std::string &sourceType) {
     }
 }
 
+std::string Source::getSourceTypeString(SourceType sourceType) {
+    switch (sourceType) {
+        case Image:
+            return "Image";
+        case MediaSource:
+            return "MediaSource";
+        default:
+            throw std::invalid_argument("Invalid sourceType: " + std::to_string(sourceType));
+    }
+}
+
 void Source::obs_volmeter_callback(void *param, const float *magnitude, const float *peak, const float *input_peak) {
     auto source = static_cast<Source *>(param);
     auto callback = Callback::getVolmeterCallback();
@@ -28,17 +39,6 @@ void Source::obs_volmeter_callback(void *param, const float *magnitude, const fl
     }
 }
 
-std::string Source::getSourceTypeString(SourceType sourceType) {
-    switch (sourceType) {
-        case Image:
-            return "Image";
-        case MediaSource:
-            return "MediaSource";
-        default:
-            throw std::invalid_argument("Invalid sourceType: " + std::to_string(sourceType));
-    }
-}
-
 Source::Source(std::string &id, SourceType type, std::string &url, std::string &sceneId, int sceneIndex, obs_scene_t *obs_scene,
                Settings *settings)
         : id(id),
@@ -51,6 +51,7 @@ Source::Source(std::string &id, SourceType type, std::string &url, std::string &
           obs_source(nullptr),
           obs_scene_item(nullptr),
           obs_volmeter(nullptr),
+          obs_fader(nullptr),
           started(false) {
 }
 
@@ -133,14 +134,30 @@ void Source::stop() {
     started = false;
 }
 
-void Source::updateUrl(std::string &sourceUrl) {
+void Source::restart() {
     stop();
-    url = sourceUrl;
     start();
 }
 
-float Source::getVolume() {
-    return obs_fader ? obs_fader_get_db(obs_fader) : 0;
+std::string Source::getId() {
+    return id;
+}
+
+std::string Source::getSceneId() {
+    return sceneId;
+}
+
+SourceType Source::getType() {
+    return type;
+}
+
+void Source::setUrl(const std::string &sourceUrl) {
+    url = sourceUrl;
+    restart();
+}
+
+std::string Source::getUrl() {
+    return url;
 }
 
 void Source::setVolume(float volume) {
@@ -148,8 +165,8 @@ void Source::setVolume(float volume) {
     obs_fader_set_db(obs_fader, volume);
 }
 
-bool Source::getAudioLock() {
-    return obs_source ? obs_source_get_audio_lock(obs_source) : false;
+float Source::getVolume() {
+    return obs_fader ? obs_fader_get_db(obs_fader) : 0;
 }
 
 void Source::setAudioLock(bool audioLock) {
@@ -158,9 +175,13 @@ void Source::setAudioLock(bool audioLock) {
     }
 }
 
-void Source::setMonitor(bool monitor) {
+bool Source::getAudioLock() {
+    return obs_source ? obs_source_get_audio_lock(obs_source) : false;
+}
+
+void Source::setAudioMonitor(bool audioMonitor) {
     if (obs_source) {
-        if (monitor) {
+        if (audioMonitor) {
             obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_MONITOR_ONLY);
         } else {
             obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_NONE);
@@ -168,19 +189,6 @@ void Source::setMonitor(bool monitor) {
     }
 }
 
-Napi::Object Source::getSource(const Napi::Env &env) {
-    auto source = Napi::Object::New(env);
-    source.Set("id", id);
-    source.Set("type", getSourceTypeString(type));
-    source.Set("url", url);
-    return source;
-}
-
-Napi::Object Source::getMixer(const Napi::Env &env) {
-    auto source = Napi::Object::New(env);
-    source.Set("sourceId", id);
-    source.Set("sceneId", sceneId);
-    source.Set("volume", getVolume());
-    source.Set("audioLock", getAudioLock());
-    return source;
+bool Source::getAudioMonitor() {
+    return obs_source && obs_source_get_monitoring_type(obs_source) == OBS_MONITORING_TYPE_MONITOR_ONLY;
 }

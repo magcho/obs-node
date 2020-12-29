@@ -230,37 +230,20 @@ void Studio::shutdown() {
 
 void Studio::addScene(std::string &sceneId) {
     std::unique_lock<std::mutex> lock(scenes_mtx);
-    int index = scenes.size();
+    int index = (int)scenes.size();
     auto scene = new Scene(sceneId, index, settings);
     scenes[sceneId] = scene;
 }
 
 void Studio::addSource(std::string &sceneId, std::string &sourceId, SourceType sourceType, std::string &sourceUrl) {
-    auto it = scenes.find(sceneId);
-    if (it == scenes.end()) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
-    it->second->addSource(sourceId, sourceType, sourceUrl);
+    findScene(sceneId)->addSource(sourceId, sourceType, sourceUrl);
 }
 
-void Studio::updateSource(std::string &sceneId, std::string &sourceId, std::string &sourceUrl) {
-    auto it = scenes.find(sceneId);
-    if (it == scenes.end()) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
-    it->second->updateSource(sourceId, sourceUrl);
+Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
+    return findScene(sceneId)->findSource(sourceId);
 }
 
-void Studio::restartSource(std::string &sceneId, std::string &sourceId) {
-    auto scene = findScene(sceneId);
-    if (!scene) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
-    scene->restartSource(sourceId);
-}
-
-void
-Studio::addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height) {
+void Studio::addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height) {
     auto found = dsks.find(id);
     if (found != dsks.end()) {
         throw std::logic_error("Dsk " + id + " already existed");
@@ -271,9 +254,6 @@ Studio::addDSK(std::string &id, std::string &position, std::string &url, int lef
 
 void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs) {
     Scene *next = findScene(sceneId);
-    if (next == nullptr) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
 
     if (next == currentScene) {
         blog(LOG_INFO, "Same with current scene, no need to switch, skip.");
@@ -322,10 +302,6 @@ void Studio::loadModule(const std::string &binPath, const std::string &dataPath)
     }
 }
 
-const std::map<std::string, Scene *> &Studio::getScenes() {
-    return scenes;
-}
-
 void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId) {
     auto found = displays.find(displayName);
     if (found != displays.end()) {
@@ -353,14 +329,6 @@ void Studio::moveDisplay(std::string &displayName, int x, int y, int width, int 
     found->second->move(x, y, width, height);
 }
 
-Scene *Studio::findScene(std::string &sceneId) {
-    auto it = scenes.find(sceneId);
-    if (it == scenes.end()) {
-        return nullptr;
-    }
-    return it->second;
-}
-
 bool Studio::getAudioWithVideo() {
     return obs_get_audio_with_video();
 }
@@ -378,28 +346,12 @@ void Studio::setMasterVolume(float volume) {
     obs_set_master_volume(obs_db_to_mul(volume));
 }
 
-void Studio::setSourceVolume(std::string &sceneId, std::string &sourceId, float volume) {
+Scene *Studio::findScene(std::string &sceneId) {
     auto it = scenes.find(sceneId);
     if (it == scenes.end()) {
         throw std::invalid_argument("Can't find scene " + sceneId);
     }
-    it->second->setSourceVolume(sourceId, volume);
-}
-
-void Studio::setSourceAudioLock(std::string &sceneId, std::string &sourceId, bool audioLock) {
-    auto it = scenes.find(sceneId);
-    if (it == scenes.end()) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
-    it->second->setSourceAudioLock(sourceId, audioLock);
-}
-
-void Studio::setSourceMonitor(std::string &sceneId, std::string &sourceId, bool monitor) {
-    auto it = scenes.find(sceneId);
-    if (it == scenes.end()) {
-        throw std::invalid_argument("Can't find scene " + sceneId);
-    }
-    it->second->setSourceMonitor(sourceId, monitor);
+    return it->second;
 }
 
 std::string Studio::getObsBinPath() {
