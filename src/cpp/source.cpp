@@ -1,5 +1,13 @@
 #include "source.h"
 #include "callback.h"
+#include <media-io/video-frame.h>
+#include <util/platform.h>
+#define private _private
+#include <obs-internal.h>
+#undef private
+
+/* maximum buffer size */
+#define MAX_BUF_SIZE (1000 * AUDIO_OUTPUT_FRAMES * sizeof(float))
 
 SourceType Source::getSourceType(const std::string &sourceType) {
     if (sourceType == "Image") {
@@ -26,7 +34,7 @@ void Source::obs_volmeter_callback(void *param, const float *magnitude, const fl
     auto source = static_cast<Source *>(param);
     auto callback = Callback::getVolmeterCallback();
     if (callback && source->obs_volmeter) {
-        int channels = obs_volmeter_get_nr_channels(source -> obs_volmeter);
+        int channels = obs_volmeter_get_nr_channels(source->obs_volmeter);
         std::vector<float> vecMagnitude;
         std::vector<float> vecPeak;
         std::vector<float> vecInputPeak;
@@ -39,20 +47,146 @@ void Source::obs_volmeter_callback(void *param, const float *magnitude, const fl
     }
 }
 
-Source::Source(std::string &id, SourceType type, std::string &url, std::string &sceneId, int sceneIndex, obs_scene_t *obs_scene,
-               Settings *settings)
-        : id(id),
-          type(type),
-          url(url),
-          sceneId(sceneId),
-          sceneIndex(sceneIndex),
-          obs_scene(obs_scene),
-          settings(settings),
-          obs_source(nullptr),
-          obs_scene_item(nullptr),
-          obs_volmeter(nullptr),
-          obs_fader(nullptr),
-          started(false) {
+void Source::source_video_output_callback(void *param, uint32_t cx, uint32_t cy) {
+    UNUSED_PARAMETER(cx);
+    UNUSED_PARAMETER(cy);
+
+    auto source = (Source *) param;
+    auto obs_source = source->obs_source;
+    if (!obs_source) {
+        return;
+    }
+
+    int source_width = (int) obs_source_get_width(obs_source);
+    int source_height = (int) obs_source_get_height(obs_source);
+    if (source_width == 0 || source_height == 0) {
+        return;
+    }
+
+    int output_width = source->settings->output->width;
+    int output_height = source->settings->output->height;
+    float scaleX = (float) output_width / (float) source_width;
+    float scaleY = (float) output_height / (float) source_height;
+
+    auto texrender = source->output_texrender;
+    auto stagesurface = source->output_stagesurface;
+    auto video = source->output_video;
+
+    gs_texrender_reset(texrender);
+
+    if (gs_texrender_begin(texrender, output_width, output_height)) {
+        vec4 background = {};
+        vec4_zero(&background);
+
+        gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
+        gs_ortho(0.0f, (float) output_width, 0.0f, (float) output_height, -100.0f, 100.0f);
+
+        gs_blend_state_push();
+        gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
+        gs_matrix_scale3f(scaleX, scaleY, 1);
+        obs_source_video_render(obs_source);
+
+        gs_blend_state_pop();
+        gs_texrender_end(texrender);
+
+        struct video_frame output_frame = {};
+        if (video_output_lock_frame(video, &output_frame, 1, os_gettime_ns())) {
+            gs_stage_texture(stagesurface, gs_texrender_get_texture(texrender));
+            uint8_t *video_data = nullptr;
+            uint32_t video_linesize;
+            if (gs_stagesurface_map(stagesurface, &video_data, &video_linesize)) {
+                uint32_t linesize = output_frame.linesize[0];
+                for (uint32_t i = 0; i < output_height; i++) {
+                    uint32_t dst_offset = linesize * i;
+                    uint32_t src_offset = video_linesize * i;
+                    memcpy(output_frame.data[0] +
+                           dst_offset,
+                           video_data + src_offset,
+                           linesize);
+                }
+                gs_stagesurface_unmap(stagesurface);
+            }
+            video_output_unlock_frame(video);
+        }
+    }
+}
+
+void Source::audio_capture_callback(void *param, obs_source_t *obs_source, const struct audio_data *audio_data, bool muted) {
+    UNUSED_PARAMETER(obs_source);
+    UNUSED_PARAMETER(muted);
+
+    auto source = (Source*)param;
+    size_t size = audio_data->frames * sizeof(float);
+    size_t channels = audio_output_get_channels(source->output_audio);
+
+    pthread_mutex_lock(&source->output_audio_buf_mutex);
+
+    // keep buffer size not too large
+    if ((source->output_audio_buf[0].size + size) > MAX_BUF_SIZE) {
+        for (size_t i = 0; i < channels; i++) {
+            circlebuf_pop_front(&source->output_audio_buf[i], nullptr, size);
+        }
+    }
+
+    for (size_t i = 0; i < channels; i++) {
+        circlebuf_push_back(&source->output_audio_buf[i], audio_data->data[i], size);
+    }
+
+    pthread_mutex_unlock(&source->output_audio_buf_mutex);
+}
+
+bool Source::source_audio_output_callback(
+        void *param,
+        uint64_t start_ts_in,
+        uint64_t end_ts_in,
+        uint64_t *out_ts,
+        uint32_t mixers,
+        struct audio_output_data *mixes) {
+
+    UNUSED_PARAMETER(end_ts_in);
+    UNUSED_PARAMETER(mixers);
+
+    auto source = (Source*)param;
+    auto audio = source->output_audio;
+    size_t channels = audio_output_get_channels(audio);
+    size_t audio_size = AUDIO_OUTPUT_FRAMES * sizeof(float);
+
+    pthread_mutex_lock(&source->output_audio_buf_mutex);
+
+    if (source->output_audio_buf[0].size < audio_size) {
+        pthread_mutex_unlock(&source->output_audio_buf_mutex);
+        return false;
+    }
+
+    for (size_t ch = 0; ch < channels; ch++) {
+        circlebuf_pop_front(&source->output_audio_buf[ch], mixes[0].data[ch], audio_size);
+    }
+
+    pthread_mutex_unlock(&source->output_audio_buf_mutex);
+
+    *out_ts = start_ts_in;
+    return true;
+}
+
+Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene, std::shared_ptr<SourceSettings> &settings) :
+        id(id),
+        sceneId(sceneId),
+        obs_scene(obs_scene),
+        settings(settings),
+        type(Source::getSourceType(settings->type)),
+        url(settings->url),
+        output(settings->output ? new Output(settings->output) : nullptr),
+        obs_source(nullptr),
+        obs_scene_item(nullptr),
+        obs_volmeter(nullptr),
+        obs_fader(nullptr),
+        output_video(nullptr),
+        output_audio(nullptr),
+        output_texrender(nullptr),
+        output_stagesurface(nullptr),
+        output_audio_buf(),
+        output_audio_buf_mutex() {
 }
 
 void Source::start() {
@@ -65,9 +199,7 @@ void Source::start() {
         obs_data_set_string(obs_data, "input", url.c_str());
         obs_data_set_bool(obs_data, "is_local_file", false);
         obs_data_set_bool(obs_data, "looping", false);
-        if (settings->videoDecoder) {
-            obs_data_set_bool(obs_data, "hw_decode", settings->videoDecoder->hardwareEnable);
-        }
+        obs_data_set_bool(obs_data, "hw_decode", settings->hardwareDecoder);
         obs_data_set_bool(obs_data, "close_when_inactive", false);  // make source always read
         obs_data_set_bool(obs_data, "restart_on_activate", false);  // make source always read
         obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
@@ -86,16 +218,15 @@ void Source::start() {
     }
 
     // Scale source to output size by setting bounds
-    if (settings->video && settings->video->baseWidth > 0 && settings->video->baseHeight > 0) {
-        struct vec2 bounds = {};
-        bounds.x = (float) settings->video->baseWidth;
-        bounds.y = (float) settings->video->baseHeight;
-        uint32_t align = OBS_ALIGN_TOP + OBS_ALIGN_LEFT;
-        obs_sceneitem_set_bounds_type(obs_scene_item, OBS_BOUNDS_SCALE_INNER);
-        obs_sceneitem_set_bounds(obs_scene_item, &bounds);
-        obs_sceneitem_set_bounds_alignment(obs_scene_item, align);
-        started = true;
-    }
+    obs_video_info ovi = {};
+    obs_get_video_info(&ovi);
+    struct vec2 bounds = {};
+    bounds.x = (float) ovi.base_width;
+    bounds.y = (float) ovi.base_height;
+    uint32_t align = OBS_ALIGN_TOP + OBS_ALIGN_LEFT;
+    obs_sceneitem_set_bounds_type(obs_scene_item, OBS_BOUNDS_SCALE_INNER);
+    obs_sceneitem_set_bounds(obs_scene_item, &bounds);
+    obs_sceneitem_set_bounds_alignment(obs_scene_item, align);
 
     // Volmeter
     obs_volmeter = obs_volmeter_create(OBS_FADER_IEC);
@@ -111,9 +242,17 @@ void Source::start() {
         blog(LOG_ERROR, "Failed to create obs fader");
     }
     obs_fader_attach_source(obs_fader, obs_source);
+
+    // source output
+    if (output) {
+        startOutput();
+    }
 }
 
 void Source::stop() {
+    if (output) {
+        stopOutput();
+    }
     if (obs_volmeter) {
         obs_volmeter_remove_callback(obs_volmeter, obs_volmeter_callback, this);
         obs_volmeter_detach_source(obs_volmeter);
@@ -131,7 +270,6 @@ void Source::stop() {
     obs_source_release(obs_source);
     obs_source = nullptr;
     obs_scene_item = nullptr;
-    started = false;
 }
 
 void Source::restart() {
@@ -176,7 +314,7 @@ void Source::setAudioLock(bool audioLock) {
 }
 
 bool Source::getAudioLock() {
-    return obs_source ? obs_source_get_audio_lock(obs_source) : false;
+    return obs_source != nullptr && obs_source_get_audio_lock(obs_source);
 }
 
 void Source::setAudioMonitor(bool audioMonitor) {
@@ -191,4 +329,78 @@ void Source::setAudioMonitor(bool audioMonitor) {
 
 bool Source::getAudioMonitor() {
     return obs_source && obs_source_get_monitoring_type(obs_source) == OBS_MONITORING_TYPE_MONITOR_ONLY;
+}
+
+void Source::startOutput() {
+    // video output
+    obs_video_info ovi = {};
+    obs_get_video_info(&ovi);
+
+    int width = settings->output->width;
+    int height = settings->output->height;
+
+    video_output_info vi = {};
+    vi.name = (std::string("source_video_output_") + id).c_str();
+    vi.format = VIDEO_FORMAT_BGRA;
+    vi.width = width;
+    vi.height = height;
+    vi.fps_num = ovi.fps_num;
+    vi.fps_den = ovi.fps_den;
+    vi.cache_size = 16;
+    video_output_open(&output_video, &vi);
+
+    obs_enter_graphics();
+    output_texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+    output_stagesurface = gs_stagesurface_create(width, height, GS_BGRA);
+    obs_leave_graphics();
+
+    obs_add_main_render_callback(source_video_output_callback, this);
+
+    // audio output
+    pthread_mutex_init_value(&output_audio_buf_mutex);
+    if (pthread_mutex_init(&output_audio_buf_mutex, nullptr) != 0) {
+        throw std::runtime_error("Failed to create output audio buffer mutex.");
+    }
+    for (auto &buf : output_audio_buf) {
+        circlebuf_init(&buf);
+    }
+    obs_source_add_audio_capture_callback(obs_source, audio_capture_callback, this);
+
+    obs_audio_info oai = {};
+    obs_get_audio_info(&oai);
+
+    audio_output_info ai = {};
+    ai.name = (std::string("source_audio_output_") + id).c_str();
+    ai.samples_per_sec = oai.samples_per_sec;
+    ai.format = AUDIO_FORMAT_FLOAT_PLANAR;
+    ai.speakers = oai.speakers;
+    ai.input_callback = source_audio_output_callback;
+    ai.input_param = this;
+
+    audio_output_open(&output_audio, &ai);
+
+    output->start(output_video, output_audio);
+}
+
+void Source::stopOutput() {
+    output->stop();
+
+    // output video stop
+    video_output_stop(output_video);
+    obs_remove_main_render_callback(source_video_output_callback, this);
+    obs_enter_graphics();
+    gs_stagesurface_destroy(output_stagesurface);
+    gs_texrender_destroy(output_texrender);
+    obs_leave_graphics();
+    video_output_close(output_video);
+
+    // output audio stop
+    audio_output_close(output_audio);
+
+    pthread_mutex_destroy(&output_audio_buf_mutex);
+    for (auto &buf : output_audio_buf) {
+        circlebuf_free(&buf);
+    }
+
+    obs_source_remove_audio_capture_callback(obs_source, audio_capture_callback, this);
 }

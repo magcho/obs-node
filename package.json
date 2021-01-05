@@ -7,6 +7,7 @@
     "prepare": "rimraf dist && tsc --declaration",
     "postinstall": "node dist/scripts/download.js || true",
     "test": "ts-node test/test.ts",
+    "test:debug": "node --inspect --require ts-node/register test/test.ts",
     "upload": "ts-node src/scripts/upload.ts"
   },
   "dependencies": {

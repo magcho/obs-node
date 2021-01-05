@@ -10,7 +10,6 @@
 QApplication *qApplication;
 #endif
 
-std::string obsPath;
 Studio *studio = nullptr;
 Settings *settings = nullptr;
 Napi::ThreadSafeFunction js_volmeter_thread;
@@ -25,7 +24,8 @@ struct VolmeterData {
 };
 
 Napi::Value setObsPath(const Napi::CallbackInfo &info) {
-    obsPath = info[0].As<Napi::String>();
+    std::string obsPath = info[0].As<Napi::String>();
+    Studio::setObsPath(obsPath);
     return info.Env().Undefined();
 }
 
@@ -36,7 +36,7 @@ Napi::Value startup(const Napi::CallbackInfo &info) {
     qApplication = new QApplication(argc, argv);
 #endif
     settings = new Settings(info[0].As<Napi::Object>());
-    studio = new Studio(obsPath, settings);
+    studio = new Studio(settings);
     TRY_METHOD(studio->startup())
     return info.Env().Undefined();
 }
@@ -60,9 +60,8 @@ Napi::Value addScene(const Napi::CallbackInfo &info) {
 Napi::Value addSource(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string sourceId = info[1].As<Napi::String>();
-    SourceType sourceType = Source::getSourceType(info[2].As<Napi::String>());
-    std::string sourceUrl = info[3].As<Napi::String>();
-    TRY_METHOD(studio->addSource(sceneId, sourceId, sourceType, sourceUrl))
+    auto sourceSettings = std::make_shared<SourceSettings>(info[2].As<Napi::Object>());
+    TRY_METHOD(studio->addSource(sceneId, sourceId, sourceSettings))
     return info.Env().Undefined();
 }
 

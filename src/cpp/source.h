@@ -1,8 +1,11 @@
 #pragma once
 
 #include "settings.h"
+#include "output.h"
 #include <string>
+#include <memory>
 #include <obs.h>
+#include <util/circlebuf.h>
 
 enum SourceType {
     Image = 0,
@@ -13,15 +16,13 @@ class Source {
 
 public:
     static SourceType getSourceType(const std::string &sourceType);
+
     static std::string getSourceTypeString(SourceType sourceType);
 
     Source(std::string &id,
-           SourceType type,
-           std::string &url,
            std::string &sceneId,
-           int sceneIndex,
            obs_scene_t *obs_scene,
-           Settings *settings
+           std::shared_ptr<SourceSettings> &settings
     );
 
     void start();
@@ -30,9 +31,9 @@ public:
 
     void restart();
 
-    std:: string getId();
+    std::string getId();
 
-    std:: string getSceneId();
+    std::string getSceneId();
 
     SourceType getType();
 
@@ -59,16 +60,46 @@ private:
             const float peak[MAX_AUDIO_CHANNELS],
             const float input_peak[MAX_AUDIO_CHANNELS]);
 
+    static void source_video_output_callback(
+            void *param,
+            uint32_t cx,
+            uint32_t cy
+    );
+
+    static bool source_audio_output_callback(
+            void *param,
+            uint64_t start_ts_in,
+            uint64_t end_ts_in,
+            uint64_t *out_ts,
+            uint32_t mixers,
+            struct audio_output_data *mixes
+    );
+
+    static void audio_capture_callback(
+            void *param,
+            obs_source_t *source,
+            const struct audio_data *audio_data,
+            bool muted
+    );
+
+    void startOutput();
+    void stopOutput();
+
     std::string id;
+    std::string sceneId;
+    obs_scene_t *obs_scene;
+    std::shared_ptr<SourceSettings> settings;
     SourceType type;
     std::string url;
-    std::string sceneId;
-    int sceneIndex;
-    obs_scene_t *obs_scene;
-    Settings *settings;
+    Output *output;
     obs_source_t *obs_source;
     obs_sceneitem_t *obs_scene_item;
     obs_volmeter_t *obs_volmeter;
     obs_fader_t *obs_fader;
-    bool started;
+    video_t *output_video;
+    audio_t *output_audio;
+    gs_texrender_t *output_texrender;
+    gs_stagesurf_t *output_stagesurface;
+    circlebuf output_audio_buf[MAX_AUDIO_CHANNELS];
+    pthread_mutex_t output_audio_buf_mutex;
 };

@@ -36,7 +36,9 @@ SET(OBS_NODE_SOURCES
     src/cpp/dsk.cpp
     src/cpp/platform/platform.h
     src/cpp/callback.h
-    src/cpp/callback.cpp)
+    src/cpp/callback.cpp
+    src/cpp/output.h
+    src/cpp/output.cpp)
 
 if (WIN32)
     LIST(APPEND OBS_NODE_SOURCES
@@ -85,3 +87,5 @@ target_link_libraries(${PROJECT_NAME}
         ${CMAKE_JS_LIB}
         ${OBS_NODE_DEPS}
 )
+
+include_directories(/Users/mengli/BICBT/obs-node/obs-studio-build/obs-studio-26.0.2-patch2)

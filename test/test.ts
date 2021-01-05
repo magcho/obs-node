@@ -1,11 +1,11 @@
 import * as obs from '../src';
 import * as readline from 'readline';
+import {SourceSettings} from "../src";
 
 interface Source {
     sceneId: string;
     sourceId: string;
-    sourceType: obs.SourceType;
-    sourceUrl: string;
+    settings: SourceSettings;
 }
 
 const settings: obs.Settings = {
@@ -20,26 +20,19 @@ const settings: obs.Settings = {
     audio: {
         sampleRate: 44100,
     },
-    videoDecoder: {
-        hardwareEnable: false,
-    },
-    videoEncoder: {
+    output: {
+        server: 'rtmp://host.docker.internal/live',
+        key: 'output',
         hardwareEnable: false,
         width: 1280,
         height: 720,
-        bitrateKbps: 1000,
         keyintSec: 1,
         rateControl: 'CBR',
         preset: 'ultrafast',
         profile: 'main',
         tune: 'zerolatency',
-    },
-    audioEncoder: {
-        bitrateKbps: 64,
-    },
-    output: {
-        server: 'rtmp://host.docker.internal/live',
-        key: 'output',
+        videoBitrateKbps: 1000,
+        audioBitrateKbps: 64,
     },
 };
 
@@ -59,20 +52,43 @@ const sources: Source[] = [
     {
         sceneId: 'scene1',
         sourceId: 'source1',
-        sourceType: 'MediaSource',
-        sourceUrl: 'rtmp://host.docker.internal/live/source1',
+        settings: {
+            type: 'MediaSource',
+            url: 'rtmp://host.docker.internal/live/source1',
+            hardwareDecoder: false,
+            output: {
+                server: 'rtmp://host.docker.internal/preview',
+                key: 'source1',
+                hardwareEnable: false,
+                width: 640,
+                height: 360,
+                keyintSec: 1,
+                rateControl: 'CBR',
+                preset: 'ultrafast',
+                profile: 'baseline',
+                tune: 'zerolatency',
+                videoBitrateKbps: 1000,
+                audioBitrateKbps: 64,
+            }
+        }
     },
     {
         sceneId: 'scene2',
         sourceId: 'source2',
-        sourceType: 'MediaSource',
-        sourceUrl: 'rtmp://host.docker.internal/live/source2',
+        settings: {
+            type: 'MediaSource',
+            url: 'rtmp://host.docker.internal/live/source2',
+            hardwareDecoder: false,
+        }
     },
     {
         sceneId: 'scene3',
         sourceId: 'source3',
-        sourceType: 'MediaSource',
-        sourceUrl: 'rtmp://host.docker.internal/live/source3',
+        settings: {
+            type: 'MediaSource',
+            url: 'rtmp://host.docker.internal/live/source3',
+            hardwareDecoder: false,
+        }
     }
 ];
 
@@ -88,7 +104,7 @@ obs.startup(settings);
 
 sources.forEach(s => {
     obs.addScene(s.sceneId);
-    obs.addSource(s.sceneId, s.sourceId, s.sourceType, s.sourceUrl);
+    obs.addSource(s.sceneId, s.sourceId, s.settings);
 });
 
 dsks.forEach(dsk => {

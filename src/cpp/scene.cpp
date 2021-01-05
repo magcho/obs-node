@@ -19,8 +19,8 @@ Scene::~Scene() {
     }
 }
 
-void Scene::addSource(std::string &sourceId, SourceType sourceType, std::string &sourceUrl) {
-    auto source = new Source(sourceId, sourceType, sourceUrl, id, index, obs_scene, settings);
+void Scene::addSource(std::string &sourceId, std::shared_ptr<SourceSettings> &settings) {
+    auto source = new Source(sourceId, id, obs_scene, settings);
     sources[sourceId] = source;
 
     // Start the source as soon as it's added.
