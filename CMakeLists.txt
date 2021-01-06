@@ -87,5 +87,3 @@ target_link_libraries(${PROJECT_NAME}
         ${CMAKE_JS_LIB}
         ${OBS_NODE_DEPS}
 )
-
-include_directories(/Users/mengli/BICBT/obs-node/obs-studio-build/obs-studio-26.0.2-patch2)

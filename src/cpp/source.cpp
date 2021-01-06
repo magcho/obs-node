@@ -381,7 +381,8 @@ void Source::startOutput() {
     int height = settings->output->height;
 
     video_output_info vi = {};
-    vi.name = (std::string("source_video_output_") + id).c_str();
+    std::string videoOutputName = std::string("source_video_output_") + id;
+    vi.name = videoOutputName.c_str();
     vi.format = VIDEO_FORMAT_BGRA;
     vi.width = width;
     vi.height = height;
@@ -411,7 +412,8 @@ void Source::startOutput() {
     obs_get_audio_info(&oai);
 
     audio_output_info ai = {};
-    ai.name = (std::string("source_audio_output_") + id).c_str();
+    std::string audioOutputName = std::string("source_audio_output_") + id;
+    ai.name = audioOutputName.c_str();
     ai.samples_per_sec = oai.samples_per_sec;
     ai.format = AUDIO_FORMAT_FLOAT_PLANAR;
     ai.speakers = oai.speakers;
@@ -455,6 +457,6 @@ void Source::play() {
 void Source::pauseToBeginning() {
     if (obs_source) {
         obs_source_media_play_pause(obs_source, true);
-        obs_source_media_set_time(obs_source, 10000);
+        obs_source_media_set_time(obs_source, 0);
     }
 }
