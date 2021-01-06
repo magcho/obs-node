@@ -4,41 +4,28 @@
 #include <obs.h>
 
 std::mutex scenes_mtx;
+std::string Studio::obsPath;
 
-Studio::Studio(std::string &obsPath, Settings *settings)
-        : obsPath(obsPath),
+Studio::Studio(Settings *settings) :
           settings(settings),
-          currentScene(nullptr),
-          video_encoder(nullptr),
-          audio_encoder(nullptr),
-          output_service(nullptr),
-          output(nullptr) {
+          currentScene(nullptr) {
+    if (settings->output) {
+        this->output = new Output(settings->output);
+    }
+}
+
+Studio::~Studio() {
+    delete this->output;
 }
 
 void Studio::startup() {
     auto currentWorkDir = std::filesystem::current_path();
-    obs_data_t *audio_encoder_settings = nullptr;
-    obs_data_t *video_encoder_settings = nullptr;
-    obs_data_t *output_service_settings = nullptr;
-    obs_data_t *output_settings = nullptr;
 
     // Change work directory to obs bin path to setup obs properly.
     blog(LOG_INFO, "Set work directory to %s for loading obs data", getObsBinPath().c_str());
     std::filesystem::current_path(getObsBinPath());
 
     auto restore = [&] {
-        if (audio_encoder_settings) {
-            obs_data_release(audio_encoder_settings);
-        }
-        if (video_encoder_settings) {
-            obs_data_release(video_encoder_settings);
-        }
-        if (output_service_settings) {
-            obs_data_release(output_service_settings);
-        }
-        if (output_settings) {
-            obs_data_release(output_settings);
-        }
         std::filesystem::current_path(currentWorkDir);
     };
 
@@ -103,111 +90,7 @@ void Studio::startup() {
 
         obs_post_load_modules();
 
-        // audio encoder
-        if (settings->audioEncoder) {
-            audio_encoder = obs_audio_encoder_create("ffmpeg_aac", "aac enc", nullptr, 0, nullptr);
-            if (!audio_encoder) {
-                throw std::runtime_error("Failed to create audio encoder.");
-            }
-
-            audio_encoder_settings = obs_encoder_get_settings(audio_encoder);
-            if (!audio_encoder_settings) {
-                throw std::runtime_error("Failed to get audio encoder settings.");
-            }
-
-            obs_data_set_int(audio_encoder_settings, "bitrate", settings->audioEncoder->bitrateKbps);
-            obs_encoder_update(audio_encoder, audio_encoder_settings);
-            obs_encoder_set_audio(audio_encoder, obs_get_audio());
-        }
-
-        // video encoder
-        if (settings->videoEncoder) {
-            std::string encoder = settings->videoEncoder->hardwareEnable ? "ffmpeg_nvenc" : "obs_x264";
-            video_encoder = obs_video_encoder_create(encoder.c_str(), "h264 enc", nullptr, nullptr);
-            if (!video_encoder) {
-                throw std::runtime_error("Failed to create video encoder.");
-            }
-
-            video_encoder_settings = obs_encoder_get_settings(video_encoder);
-            if (!video_encoder_settings) {
-                throw std::runtime_error("Failed to get video encoder settings.");
-            }
-
-            obs_data_set_int(video_encoder_settings, "bitrate", settings->videoEncoder->bitrateKbps);
-            obs_data_set_int(video_encoder_settings, "keyint_sec", settings->videoEncoder->keyintSec);
-            obs_data_set_string(video_encoder_settings, "rate_control", settings->videoEncoder->rateControl.c_str());
-            obs_data_set_int(video_encoder_settings, "width", settings->videoEncoder->width);
-            obs_data_set_int(video_encoder_settings, "height", settings->videoEncoder->height);
-            obs_data_set_string(video_encoder_settings, "preset", settings->videoEncoder->preset.c_str());
-            obs_data_set_string(video_encoder_settings, "profile", settings->videoEncoder->profile.c_str());
-            obs_data_set_string(video_encoder_settings, "tune", settings->videoEncoder->tune.c_str());
-            obs_data_set_string(video_encoder_settings, "x264opts", settings->videoEncoder->x264opts.c_str());
-        }
-
-        // video decoder
-        if (settings->videoDecoder) {
-            obs_encoder_update(video_encoder, video_encoder_settings);
-            obs_encoder_set_video(video_encoder, obs_get_video());
-        }
-
-        // output
-        if (settings->output) {
-            bool is_rtmp = settings->output->server.rfind("rtmp", 0) == 0;
-            if (is_rtmp) {
-                output_service = obs_service_create("rtmp_common", "rtmp service", nullptr, nullptr);
-            } else {
-                output_service = obs_service_create("rtmp_custom", "custom service", nullptr, nullptr);
-            }
-
-            if (!output_service) {
-                throw std::runtime_error("Failed to create output service.");
-            }
-
-            output_service_settings = obs_data_create();
-            if (!output_service_settings) {
-                throw std::runtime_error("Failed to create output settings.");
-            }
-
-            obs_data_set_string(output_service_settings, "server", settings->output->server.c_str());
-
-            if (!settings->output->key.empty()) {
-                obs_data_set_string(output_service_settings, "key", settings->output->key.c_str());
-            }
-
-            obs_service_update(output_service, output_service_settings);
-            obs_service_apply_encoder_settings(output_service, video_encoder_settings, audio_encoder_settings);
-
-            if (is_rtmp) {
-                output = obs_output_create("rtmp_output", "rtmp output", nullptr, nullptr);
-
-            } else {
-                output = obs_output_create("ffmpeg_mpegts_muxer", "ffmpeg mpegts muxer output", nullptr, nullptr);
-                output_settings = obs_output_get_settings(output);
-#ifdef _WIN32
-                obs_data_set_string(output_settings, "exec_path", (getObsBinPath() + "\\obs-ffmpeg-mux.exe").c_str());
-#else
-                obs_data_set_string(output_settings, "exec_path", (getObsBinPath() + "/obs-ffmpeg-mux").c_str());
-#endif
-            }
-
-            if (!output) {
-                throw std::runtime_error("Failed to create output.");
-            }
-
-            if (video_encoder) {
-                obs_output_set_video_encoder(output, video_encoder);
-            }
-
-            if (audio_encoder) {
-                obs_output_set_audio_encoder(output, audio_encoder, 0);
-            }
-
-            obs_output_set_service(output, output_service);
-
-            if (!obs_output_start(output)) {
-                throw std::runtime_error("Failed to start output.");
-            }
-        }
+        output->start(obs_get_video(), obs_get_audio());
 
         restore();
 
@@ -218,10 +101,7 @@ void Studio::startup() {
 }
 
 void Studio::shutdown() {
-    obs_encoder_release(video_encoder);
-    obs_encoder_release(audio_encoder);
-    obs_output_release(output);
-    obs_service_release(output_service);
+    this->output->stop();
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
@@ -235,8 +115,8 @@ void Studio::addScene(std::string &sceneId) {
     scenes[sceneId] = scene;
 }
 
-void Studio::addSource(std::string &sceneId, std::string &sourceId, SourceType sourceType, std::string &sourceUrl) {
-    findScene(sceneId)->addSource(sourceId, sourceType, sourceUrl);
+void Studio::addSource(std::string &sceneId, std::string &sourceId, std::shared_ptr<SourceSettings> &settings) {
+    findScene(sceneId)->addSource(sourceId, settings);
 }
 
 Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
@@ -300,6 +180,10 @@ void Studio::loadModule(const std::string &binPath, const std::string &dataPath)
     if (!obs_init_module(module)) {
         throw std::runtime_error("Failed to load module '" + binPath + "'");
     }
+}
+
+void Studio::setObsPath(std::string &obsPath) {
+    Studio::obsPath = obsPath;
 }
 
 void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId) {

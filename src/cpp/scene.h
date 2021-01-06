@@ -14,9 +14,7 @@ public:
 
     std::string getId() { return id; }
 
-    const std::map<std::string, Source*> &getSources();
-
-    void addSource(std::string &sourceId, SourceType sourceType, std::string &sourceUrl);
+    void addSource(std::string &sourceId, std::shared_ptr<SourceSettings> &settings);
 
     Source *findSource(std::string &sourceId);
 

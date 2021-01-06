@@ -4,6 +4,7 @@
 #include <napi.h>
 
 struct VideoSettings {
+    explicit VideoSettings(const Napi::Object& videoSettings);
     int baseWidth;
     int baseHeight;
     int outputWidth;
@@ -13,33 +14,27 @@ struct VideoSettings {
 };
 
 struct AudioSettings {
+    explicit AudioSettings(const Napi::Object& audioSettings);
     int sampleRate;
 };
 
-struct VideoDecoderSettings {
-    bool hardwareEnable;
-};
+class OutputSettings {
 
-struct VideoEncoderSettings {
+public:
+    explicit OutputSettings(const Napi::Object& outputSettings);
+    std::string server;
+    std::string key;
     bool hardwareEnable;
     int width;
     int height;
-    int bitrateKbps;
     int keyintSec;
-    std:: string rateControl;
-    std:: string preset;
-    std:: string profile;
-    std:: string tune;
-    std:: string x264opts;
-};
-
-struct AudioEncoderSettings {
-    int bitrateKbps;
-};
-
-struct OutputSettings {
-    std::string server;
-    std::string key;
+    std::string rateControl;
+    std::string preset;
+    std::string profile;
+    std::string tune;
+    std::string x264opts;
+    int videoBitrateKbps;
+    int audioBitrateKbps;
 };
 
 class Settings {
@@ -50,7 +45,16 @@ public:
     VideoSettings *video;
     AudioSettings *audio;
     OutputSettings *output;
-    VideoDecoderSettings *videoDecoder;
-    VideoEncoderSettings *videoEncoder;
-    AudioEncoderSettings *audioEncoder;
+};
+
+class SourceSettings {
+public:
+    explicit SourceSettings(const Napi::Object& settings);
+    ~SourceSettings();
+    std::string type;
+    bool isFile;
+    std::string url;
+    bool startOnActive;
+    bool hardwareDecoder;
+    OutputSettings *output;
 };

@@ -36,7 +36,9 @@ SET(OBS_NODE_SOURCES
     src/cpp/dsk.cpp
     src/cpp/platform/platform.h
     src/cpp/callback.h
-    src/cpp/callback.cpp)
+    src/cpp/callback.cpp
+    src/cpp/output.h
+    src/cpp/output.cpp)
 
 if (WIN32)
     LIST(APPEND OBS_NODE_SOURCES

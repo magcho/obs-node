@@ -3,13 +3,20 @@
 #include "settings.h"
 #include "scene.h"
 #include "display.h"
+#include "output.h"
 #include <map>
 #include <obs.h>
 
 class Studio {
 
 public:
-    Studio(std::string &obsPath, Settings *settings);
+    static void setObsPath(std::string &obsPath);
+    static std::string getObsBinPath();
+    static std::string getObsPluginPath();
+    static std::string getObsPluginDataPath();
+
+    Studio(Settings *settings);
+    ~Studio();
 
     void startup();
 
@@ -17,7 +24,7 @@ public:
 
     void addScene(std::string &sceneId);
 
-    void addSource(std::string &sceneId, std::string &sourceId, SourceType sourceType, std::string &sourceUrl);
+    void addSource(std::string &sceneId, std::string &sourceId, std::shared_ptr<SourceSettings> &settings);
 
     Source *findSource(std::string &sceneId, std::string &sourceId);
 
@@ -41,24 +48,14 @@ public:
 
 private:
     static void loadModule(const std::string &binPath, const std::string &dataPath);
-
     Scene *findScene(std::string &sceneId);
 
-    std::string getObsBinPath();
-
-    std::string getObsPluginPath();
-
-    std::string getObsPluginDataPath();
-
-    std::string obsPath;
+    static std::string obsPath;
     Settings *settings;
     std::map<std::string, Scene *> scenes;
     std::map<std::string, obs_source_t *> transitions;
     std::map<std::string, Display *> displays;
     std::map<std::string, Dsk *> dsks;
     Scene *currentScene;
-    obs_encoder_t *video_encoder;
-    obs_encoder_t *audio_encoder;
-    obs_service_t *output_service;
-    obs_output_t *output;
+    Output *output;
 };

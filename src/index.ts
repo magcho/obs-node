@@ -40,7 +40,7 @@ declare namespace obs {
         audioMonitor: boolean;
     }
 
-    export interface UpdateSourceRequest {
+    export interface UpdateSourceSettings {
         url?: string;
         volume?: number;
         audioLock?: boolean;
@@ -60,38 +60,34 @@ declare namespace obs {
         sampleRate: number;
     }
 
-    export interface VideoDecoderSettings {
-        hardwareEnable: boolean;
+    export interface SourceSettings {
+        isFile: boolean;
+        type: SourceType;
+        url: string;
+        hardwareDecoder: boolean;
+        startOnActive: boolean;
+        output?: OutputSettings;
     }
 
-    export interface VideoEncoderSettings {
+    export interface OutputSettings {
+        server: string;
+        key: string;
         hardwareEnable: boolean;
         width: number;
         height: number;
-        bitrateKbps: number;
         keyintSec: number;
         rateControl: RateControl;
         preset: string;
         profile: string;
         tune: string;
         x264opts?: string;
-    }
-
-    export interface AudioEncoderSettings {
-        bitrateKbps: number;
-    }
-
-    export interface OutputSettings {
-        server: string;
-        key: string;
+        videoBitrateKbps: number;
+        audioBitrateKbps: number;
     }
 
     export interface Settings {
         video: VideoSettings;
         audio: AudioSettings;
-        videoDecoder?: VideoDecoderSettings;
-        videoEncoder?: VideoEncoderSettings;
-        audioEncoder?: AudioEncoderSettings;
         output?: OutputSettings;
     }
 
@@ -118,9 +114,9 @@ declare namespace obs {
         startup(settings: Settings): void;
         shutdown(): void;
         addScene(sceneId: string): string;
-        addSource(sceneId: string, sourceId: string, sourceType: SourceType, sourceUrl: string): void;
+        addSource(sceneId: string, sourceId: string, settings: SourceSettings): void;
         getSource(sceneId: string, sourceId: string): Source;
-        updateSource(sceneId: string, sourceId: string, request: UpdateSourceRequest): void;
+        updateSource(sceneId: string, sourceId: string, request: UpdateSourceSettings): void;
         restartSource(sceneId: string, sourceId: string): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;

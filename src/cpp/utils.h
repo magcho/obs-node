@@ -37,3 +37,8 @@ inline bool getNapiBoolean(Napi::Object object, const std::string &property) {
     }
     return value.As<Napi::Boolean>();
 }
+
+inline bool getNapiBooleanOrDefault(Napi::Object object, const std::string &property, const bool &defaultValue) {
+    auto value = object.Get(property);
+    return value.IsUndefined() ? defaultValue : value.As<Napi::Boolean>();
+}
