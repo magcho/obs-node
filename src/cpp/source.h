@@ -54,19 +54,19 @@ public:
     bool getAudioMonitor();
 
 private:
-    static void obs_volmeter_callback(
+    static void volmeter_callback(
             void *param,
-            const float magnitude[MAX_AUDIO_CHANNELS],
-            const float peak[MAX_AUDIO_CHANNELS],
-            const float input_peak[MAX_AUDIO_CHANNELS]);
+            const float *magnitude,
+            const float *peak,
+            const float *input_peak);
 
-    static void source_video_output_callback(
+    static void video_output_callback(
             void *param,
             uint32_t cx,
             uint32_t cy
     );
 
-    static bool source_audio_output_callback(
+    static bool audio_output_callback(
             void *param,
             uint64_t start_ts_in,
             uint64_t end_ts_in,
@@ -82,8 +82,13 @@ private:
             bool muted
     );
 
+    static void source_activate_callback(void *param, calldata_t *data);
+    static void source_deactivate_callback(void *param, calldata_t *data);
+
     void startOutput();
     void stopOutput();
+    void play();
+    void pauseToBeginning();
 
     std::string id;
     std::string sceneId;

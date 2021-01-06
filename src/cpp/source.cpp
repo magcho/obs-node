@@ -2,8 +2,11 @@
 #include "callback.h"
 #include <media-io/video-frame.h>
 #include <util/platform.h>
+
 #define private _private
+
 #include <obs-internal.h>
+
 #undef private
 
 /* maximum buffer size */
@@ -30,7 +33,7 @@ std::string Source::getSourceTypeString(SourceType sourceType) {
     }
 }
 
-void Source::obs_volmeter_callback(void *param, const float *magnitude, const float *peak, const float *input_peak) {
+void Source::volmeter_callback(void *param, const float *magnitude, const float *peak, const float *input_peak) {
     auto source = static_cast<Source *>(param);
     auto callback = Callback::getVolmeterCallback();
     if (callback && source->obs_volmeter) {
@@ -47,7 +50,7 @@ void Source::obs_volmeter_callback(void *param, const float *magnitude, const fl
     }
 }
 
-void Source::source_video_output_callback(void *param, uint32_t cx, uint32_t cy) {
+void Source::video_output_callback(void *param, uint32_t cx, uint32_t cy) {
     UNUSED_PARAMETER(cx);
     UNUSED_PARAMETER(cy);
 
@@ -112,11 +115,12 @@ void Source::source_video_output_callback(void *param, uint32_t cx, uint32_t cy)
     }
 }
 
-void Source::audio_capture_callback(void *param, obs_source_t *obs_source, const struct audio_data *audio_data, bool muted) {
+void
+Source::audio_capture_callback(void *param, obs_source_t *obs_source, const struct audio_data *audio_data, bool muted) {
     UNUSED_PARAMETER(obs_source);
     UNUSED_PARAMETER(muted);
 
-    auto source = (Source*)param;
+    auto source = (Source *) param;
     size_t size = audio_data->frames * sizeof(float);
     size_t channels = audio_output_get_channels(source->output_audio);
 
@@ -136,7 +140,7 @@ void Source::audio_capture_callback(void *param, obs_source_t *obs_source, const
     pthread_mutex_unlock(&source->output_audio_buf_mutex);
 }
 
-bool Source::source_audio_output_callback(
+bool Source::audio_output_callback(
         void *param,
         uint64_t start_ts_in,
         uint64_t end_ts_in,
@@ -147,29 +151,52 @@ bool Source::source_audio_output_callback(
     UNUSED_PARAMETER(end_ts_in);
     UNUSED_PARAMETER(mixers);
 
-    auto source = (Source*)param;
+    auto source = (Source *) param;
     auto audio = source->output_audio;
     size_t channels = audio_output_get_channels(audio);
     size_t audio_size = AUDIO_OUTPUT_FRAMES * sizeof(float);
 
     pthread_mutex_lock(&source->output_audio_buf_mutex);
 
-    if (source->output_audio_buf[0].size < audio_size) {
+    bool parsed = obs_source_media_get_state(source->obs_source) == OBS_MEDIA_STATE_PAUSED;
+    if (parsed) {
+        // clear output buffer and send mute data
+        for (size_t ch = 0; ch < channels; ch++) {
+            circlebuf_pop_front(&source->output_audio_buf[ch], nullptr, source->output_audio_buf[ch].size);
+            memset(mixes[0].data[ch], 0, audio_size);
+        }
+    } else if (source->output_audio_buf[0].size < audio_size) {
         pthread_mutex_unlock(&source->output_audio_buf_mutex);
         return false;
-    }
-
-    for (size_t ch = 0; ch < channels; ch++) {
-        circlebuf_pop_front(&source->output_audio_buf[ch], mixes[0].data[ch], audio_size);
+    } else {
+        for (size_t ch = 0; ch < channels; ch++) {
+            circlebuf_pop_front(&source->output_audio_buf[ch], mixes[0].data[ch], audio_size);
+        }
     }
 
     pthread_mutex_unlock(&source->output_audio_buf_mutex);
-
     *out_ts = start_ts_in;
     return true;
 }
 
-Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene, std::shared_ptr<SourceSettings> &settings) :
+void Source::source_activate_callback(void *param, calldata_t *data) {
+    UNUSED_PARAMETER(data);
+    auto source = (Source *) param;
+    if (source->settings->isFile && source->settings->startOnActive) {
+        source->play();
+    }
+}
+
+void Source::source_deactivate_callback(void *param, calldata_t *data) {
+    UNUSED_PARAMETER(data);
+    auto source = (Source *) param;
+    if (source->settings->isFile && source->settings->startOnActive) {
+        source->pauseToBeginning();
+    }
+}
+
+Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene, std::shared_ptr<SourceSettings> &settings)
+        :
         id(id),
         sceneId(sceneId),
         obs_scene(obs_scene),
@@ -196,12 +223,13 @@ void Source::start() {
         obs_data_set_bool(obs_data, "unload", false);
         obs_source = obs_source_create("image_source", "obs_image_source", obs_data, nullptr);
     } else if (type == MediaSource) {
-        obs_data_set_string(obs_data, "input", url.c_str());
-        obs_data_set_bool(obs_data, "is_local_file", false);
-        obs_data_set_bool(obs_data, "looping", false);
+        obs_data_set_bool(obs_data, "is_local_file", settings->isFile);
+        obs_data_set_string(obs_data, settings->isFile ? "local_file" : "input", url.c_str());
+        obs_data_set_bool(obs_data, "looping", settings->isFile);
         obs_data_set_bool(obs_data, "hw_decode", settings->hardwareDecoder);
         obs_data_set_bool(obs_data, "close_when_inactive", false);  // make source always read
         obs_data_set_bool(obs_data, "restart_on_activate", false);  // make source always read
+        obs_data_set_bool(obs_data, "clear_on_media_end", false);
         obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
     }
 
@@ -234,7 +262,7 @@ void Source::start() {
         blog(LOG_ERROR, "Failed to create obs volmeter");
     }
     obs_volmeter_attach_source(obs_volmeter, obs_source);
-    obs_volmeter_add_callback(obs_volmeter, obs_volmeter_callback, this);
+    obs_volmeter_add_callback(obs_volmeter, volmeter_callback, this);
 
     // Fader
     obs_fader = obs_fader_create(OBS_FADER_IEC);
@@ -247,14 +275,27 @@ void Source::start() {
     if (output) {
         startOutput();
     }
+
+    // pause to beginning if it's start at active
+    if (settings->isFile && settings->startOnActive) {
+        pauseToBeginning();
+    }
+
+    signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
+    signal_handler_connect(handler, "activate", source_activate_callback, this);
+    signal_handler_connect(handler, "deactivate", source_deactivate_callback, this);
 }
 
 void Source::stop() {
+    signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
+    signal_handler_disconnect(handler, "activate", source_activate_callback, this);
+    signal_handler_disconnect(handler, "deactivate", source_deactivate_callback, this);
+
     if (output) {
         stopOutput();
     }
     if (obs_volmeter) {
-        obs_volmeter_remove_callback(obs_volmeter, obs_volmeter_callback, this);
+        obs_volmeter_remove_callback(obs_volmeter, volmeter_callback, this);
         obs_volmeter_detach_source(obs_volmeter);
         obs_volmeter_destroy(obs_volmeter);
     }
@@ -354,7 +395,7 @@ void Source::startOutput() {
     output_stagesurface = gs_stagesurface_create(width, height, GS_BGRA);
     obs_leave_graphics();
 
-    obs_add_main_render_callback(source_video_output_callback, this);
+    obs_add_main_render_callback(video_output_callback, this);
 
     // audio output
     pthread_mutex_init_value(&output_audio_buf_mutex);
@@ -374,7 +415,7 @@ void Source::startOutput() {
     ai.samples_per_sec = oai.samples_per_sec;
     ai.format = AUDIO_FORMAT_FLOAT_PLANAR;
     ai.speakers = oai.speakers;
-    ai.input_callback = source_audio_output_callback;
+    ai.input_callback = audio_output_callback;
     ai.input_param = this;
 
     audio_output_open(&output_audio, &ai);
@@ -387,7 +428,7 @@ void Source::stopOutput() {
 
     // output video stop
     video_output_stop(output_video);
-    obs_remove_main_render_callback(source_video_output_callback, this);
+    obs_remove_main_render_callback(video_output_callback, this);
     obs_enter_graphics();
     gs_stagesurface_destroy(output_stagesurface);
     gs_texrender_destroy(output_texrender);
@@ -403,4 +444,17 @@ void Source::stopOutput() {
     }
 
     obs_source_remove_audio_capture_callback(obs_source, audio_capture_callback, this);
+}
+
+void Source::play() {
+    if (obs_source) {
+        obs_source_media_play_pause(obs_source, false);
+    }
+}
+
+void Source::pauseToBeginning() {
+    if (obs_source) {
+        obs_source_media_play_pause(obs_source, true);
+        obs_source_media_set_time(obs_source, 10000);
+    }
 }

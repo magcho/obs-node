@@ -54,11 +54,24 @@ const sources: Source[] = [
         sourceId: 'source1',
         settings: {
             type: 'MediaSource',
+            isFile: false,
             url: 'rtmp://host.docker.internal/live/source1',
             hardwareDecoder: false,
+            startOnActive: false,
+        }
+    },
+    {
+        sceneId: 'scene2',
+        sourceId: 'source2',
+        settings: {
+            type: 'MediaSource',
+            isFile: true,
+            url: 'test.mp4',
+            hardwareDecoder: false,
+            startOnActive: true,
             output: {
                 server: 'rtmp://host.docker.internal/preview',
-                key: 'source1',
+                key: 'source2',
                 hardwareEnable: false,
                 width: 640,
                 height: 360,
@@ -71,36 +84,10 @@ const sources: Source[] = [
                 audioBitrateKbps: 64,
             }
         }
-    },
-    {
-        sceneId: 'scene2',
-        sourceId: 'source2',
-        settings: {
-            type: 'MediaSource',
-            url: 'rtmp://host.docker.internal/live/source2',
-            hardwareDecoder: false,
-        }
-    },
-    {
-        sceneId: 'scene3',
-        sourceId: 'source3',
-        settings: {
-            type: 'MediaSource',
-            url: 'rtmp://host.docker.internal/live/source3',
-            hardwareDecoder: false,
-        }
     }
 ];
 
 obs.startup(settings);
-// obs.addVolmeterCallback((sceneId: string,
-//                          sourceId: string,
-//                          channels: number,
-//                          magnitude: number[],
-//                          peak: number[],
-//                          input_peak: number[]) => {
-//     console.log(sceneId, sourceId, channels, magnitude, peak, input_peak);
-// });
 
 sources.forEach(s => {
     obs.addScene(s.sceneId);
@@ -110,10 +97,6 @@ sources.forEach(s => {
 dsks.forEach(dsk => {
    obs.addDSK(dsk.id, dsk.position as obs.Position, dsk.url, dsk.left, dsk.top, dsk.width, dsk.height);
 });
-
-console.log(`Source 1: ${JSON.stringify(obs.getSource(sources[0].sceneId, sources[0].sourceId))}`);
-console.log(`Source 2: ${JSON.stringify(obs.getSource(sources[1].sceneId, sources[1].sourceId))}`);
-console.log(`Audio: ${JSON.stringify(obs.getAudio())}`);
 
 const readLine = readline.createInterface({
     input: process.stdin,

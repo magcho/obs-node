@@ -91,8 +91,11 @@ Settings::~Settings() {
 
 SourceSettings::SourceSettings(const Napi::Object &settings) :
         output(nullptr) {
-    url = getNapiString(settings, "url");
+
     type = getNapiString(settings, "type");
+    isFile = getNapiBooleanOrDefault(settings, "isFile", false);
+    url = getNapiString(settings, "url");
+    startOnActive = getNapiBooleanOrDefault(settings, "startOnActive", false);
     hardwareDecoder = getNapiBoolean(settings, "hardwareDecoder");
     if (!settings.Get("output").IsUndefined()) {
         auto outputSettings = settings.Get("output").As<Napi::Object>();

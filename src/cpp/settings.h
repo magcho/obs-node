@@ -51,8 +51,10 @@ class SourceSettings {
 public:
     explicit SourceSettings(const Napi::Object& settings);
     ~SourceSettings();
-    std::string url;
     std::string type;
+    bool isFile;
+    std::string url;
+    bool startOnActive;
     bool hardwareDecoder;
     OutputSettings *output;
 };

@@ -40,7 +40,7 @@ declare namespace obs {
         audioMonitor: boolean;
     }
 
-    export interface UpdateSourceRequest {
+    export interface UpdateSourceSettings {
         url?: string;
         volume?: number;
         audioLock?: boolean;
@@ -61,9 +61,11 @@ declare namespace obs {
     }
 
     export interface SourceSettings {
+        isFile: boolean;
         type: SourceType;
         url: string;
         hardwareDecoder: boolean;
+        startOnActive: boolean;
         output?: OutputSettings;
     }
 
@@ -114,7 +116,7 @@ declare namespace obs {
         addScene(sceneId: string): string;
         addSource(sceneId: string, sourceId: string, settings: SourceSettings): void;
         getSource(sceneId: string, sourceId: string): Source;
-        updateSource(sceneId: string, sourceId: string, request: UpdateSourceRequest): void;
+        updateSource(sceneId: string, sourceId: string, request: UpdateSourceSettings): void;
         restartSource(sceneId: string, sourceId: string): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
