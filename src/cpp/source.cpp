@@ -3,12 +3,6 @@
 #include <media-io/video-frame.h>
 #include <util/platform.h>
 
-#define private _private
-
-#include <obs-internal.h>
-
-#undef private
-
 /* maximum buffer size */
 #define MAX_BUF_SIZE (1000 * AUDIO_OUTPUT_FRAMES * sizeof(float))
 
