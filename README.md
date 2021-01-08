@@ -24,11 +24,15 @@ to build from user machine. Currently windows(64bit), macos, linux (ubuntu20.04)
     ```cmd
     scripts/build-windows.cmd <all/obs-studio/obs-node>
     ```
-3. Upload to github packages
-    ```shell script
-    npm run upload
-    ```
-   
+3. Build obs-studio with local directory
+   1. macos / linux
+      ```shell script
+      OBS_STUDIO_DIR=... bash scripts/build.sh <all/obs-studio/obs-node>
+      ```
+   1. windows
+      ```cmd
+      OBS_STUDIO_DIR=... scripts/build-windows.cmd <all/obs-studio/obs-node>
+      ```
 ## Docker env
 Sometimes, there is a need to build/test linux prebuilds in the local machine (MacOS), a docker env is provided in the
 project. Run
