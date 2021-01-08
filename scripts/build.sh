@@ -7,7 +7,11 @@ MAXOS_DEPS_VERSION=2020-08-30
 BASE_DIR="$(pwd)"
 BUILD_DIR="${BASE_DIR}/build"
 OBS_STUDIO_BUILD_DIR="${BASE_DIR}/obs-studio-build"
-OBS_STUDIO_DIR="${OBS_STUDIO_BUILD_DIR}/obs-studio-${OBS_STUDIO_VERSION}"
+if [[ -n "OBS_STUDIO_DIR" ]]; then
+  USE_EXISTING_OBS_STUDIO=true
+else
+  OBS_STUDIO_DIR="${OBS_STUDIO_BUILD_DIR}/obs-studio-${OBS_STUDIO_VERSION}"
+fi
 MACOS_DEPS_DIR="${OBS_STUDIO_BUILD_DIR}/macos-deps-${MAXOS_DEPS_VERSION}"
 OBS_INSTALL_PREFIX="${OBS_STUDIO_BUILD_DIR}/obs-installed"
 PREBUILD_DIR="${BASE_DIR}/prebuild"
@@ -28,10 +32,12 @@ mkdir -p "${BUILD_DIR}" "${OBS_STUDIO_BUILD_DIR}" "${PREBUILD_DIR}"
 if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
   echo "Building obs-studio"
   # Clone obs studio
-  if [[ ! -d "${OBS_STUDIO_DIR}" ]]; then
-    pushd "${OBS_STUDIO_BUILD_DIR}"
-    git clone --recursive -b ${OBS_STUDIO_VERSION} --single-branch https://github.com/BICBT/obs-studio.git "obs-studio-${OBS_STUDIO_VERSION}"
-    popd
+  if [[ "$USE_EXISTING_OBS_STUDIO" != "true" ]]; then
+    if [[ ! -d "${OBS_STUDIO_DIR}" ]]; then
+      pushd "${OBS_STUDIO_BUILD_DIR}"
+      git clone --recursive -b ${OBS_STUDIO_VERSION} --single-branch https://github.com/BICBT/obs-studio.git "obs-studio-${OBS_STUDIO_VERSION}"
+      popd
+    fi
   fi
 
   # Download macos-deps
