@@ -8,9 +8,9 @@ set BUILD_DIR=%BASE_DIR%\build
 set OBS_STUDIO_BUILD_DIR=%BASE_DIR%\obs-studio-build
 if not "%OBS_STUDIO_DIR%" == "" (
     set USE_EXISTING_OBS_STUDIO=true
-) else {
+) else (
     set OBS_STUDIO_DIR=%OBS_STUDIO_BUILD_DIR%\obs-studio-%OBS_STUDIO_VERSION%
-}
+)
 set WINDOWS_DEPS_DIR=%OBS_STUDIO_BUILD_DIR%\%WINDOWS_DEPS_VERSION%
 set OBS_INSTALL_PREFIX=%OBS_STUDIO_BUILD_DIR%\obs-installed
 set PREBUILD_DIR=%BASE_DIR%\prebuild
@@ -43,9 +43,9 @@ if not "%RELEASE_TYPE%" == "Release" (
 mkdir "%PREBUILD_DIR%" 2>NUL
 if "%BUILD_OBS_STUDIO%" == "true" (
     echo "Building obs-studio"
+    mkdir "%OBS_STUDIO_BUILD_DIR%" 2>NUL
+    cd "%OBS_STUDIO_BUILD_DIR%"
     if not "%USE_EXISTING_OBS_STUDIO%" == "true" (
-        mkdir "%OBS_STUDIO_BUILD_DIR%" 2>NUL
-        cd "%OBS_STUDIO_BUILD_DIR%"
         if not exist "%OBS_STUDIO_DIR%" (
             git clone --recursive -b %OBS_STUDIO_VERSION% --single-branch https://github.com/BICBT/obs-studio.git "obs-studio-%OBS_STUDIO_VERSION%"
         )

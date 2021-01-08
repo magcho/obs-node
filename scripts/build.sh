@@ -7,7 +7,7 @@ MAXOS_DEPS_VERSION=2020-08-30
 BASE_DIR="$(pwd)"
 BUILD_DIR="${BASE_DIR}/build"
 OBS_STUDIO_BUILD_DIR="${BASE_DIR}/obs-studio-build"
-if [[ -n "OBS_STUDIO_DIR" ]]; then
+if [[ -n "$OBS_STUDIO_DIR" ]]; then
   USE_EXISTING_OBS_STUDIO=true
 else
   OBS_STUDIO_DIR="${OBS_STUDIO_BUILD_DIR}/obs-studio-${OBS_STUDIO_VERSION}"

@@ -124,7 +124,7 @@ Source::audio_capture_callback(void *param, obs_source_t *obs_source, const stru
     size_t size = audio_data->frames * sizeof(float);
     size_t channels = audio_output_get_channels(source->output_audio);
 
-    pthread_mutex_lock(&source->output_audio_buf_mutex);
+    source->output_audio_buf_mutex.lock();
 
     // keep buffer size not too large
     if ((source->output_audio_buf[0].size + size) > MAX_BUF_SIZE) {
@@ -137,7 +137,7 @@ Source::audio_capture_callback(void *param, obs_source_t *obs_source, const stru
         circlebuf_push_back(&source->output_audio_buf[i], audio_data->data[i], size);
     }
 
-    pthread_mutex_unlock(&source->output_audio_buf_mutex);
+    source->output_audio_buf_mutex.unlock();
 }
 
 bool Source::audio_output_callback(
@@ -156,7 +156,7 @@ bool Source::audio_output_callback(
     size_t channels = audio_output_get_channels(audio);
     size_t audio_size = AUDIO_OUTPUT_FRAMES * sizeof(float);
 
-    pthread_mutex_lock(&source->output_audio_buf_mutex);
+    source->output_audio_buf_mutex.lock();
 
     bool parsed = obs_source_media_get_state(source->obs_source) == OBS_MEDIA_STATE_PAUSED;
     if (parsed) {
@@ -166,7 +166,7 @@ bool Source::audio_output_callback(
             memset(mixes[0].data[ch], 0, audio_size);
         }
     } else if (source->output_audio_buf[0].size < audio_size) {
-        pthread_mutex_unlock(&source->output_audio_buf_mutex);
+        source->output_audio_buf_mutex.unlock();
         return false;
     } else {
         for (size_t ch = 0; ch < channels; ch++) {
@@ -174,7 +174,7 @@ bool Source::audio_output_callback(
         }
     }
 
-    pthread_mutex_unlock(&source->output_audio_buf_mutex);
+    source->output_audio_buf_mutex.unlock();
     *out_ts = start_ts_in;
     return true;
 }
@@ -399,10 +399,6 @@ void Source::startOutput() {
     obs_add_main_render_callback(video_output_callback, this);
 
     // audio output
-    pthread_mutex_init_value(&output_audio_buf_mutex);
-    if (pthread_mutex_init(&output_audio_buf_mutex, nullptr) != 0) {
-        throw std::runtime_error("Failed to create output audio buffer mutex.");
-    }
     for (auto &buf : output_audio_buf) {
         circlebuf_init(&buf);
     }
@@ -440,7 +436,6 @@ void Source::stopOutput() {
     // output audio stop
     audio_output_close(output_audio);
 
-    pthread_mutex_destroy(&output_audio_buf_mutex);
     for (auto &buf : output_audio_buf) {
         circlebuf_free(&buf);
     }

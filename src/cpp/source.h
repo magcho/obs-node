@@ -4,6 +4,7 @@
 #include "output.h"
 #include <string>
 #include <memory>
+#include <mutex>
 #include <obs.h>
 #include <util/circlebuf.h>
 
@@ -106,5 +107,5 @@ private:
     gs_texrender_t *output_texrender;
     gs_stagesurf_t *output_stagesurface;
     circlebuf output_audio_buf[MAX_AUDIO_CHANNELS];
-    pthread_mutex_t output_audio_buf_mutex;
+    std::mutex output_audio_buf_mutex;
 };
