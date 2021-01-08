@@ -94,7 +94,7 @@ void Source::video_output_callback(void *param, uint32_t cx, uint32_t cy) {
             uint32_t video_linesize;
             if (gs_stagesurface_map(stagesurface, &video_data, &video_linesize)) {
                 uint32_t linesize = output_frame.linesize[0];
-                for (uint32_t i = 0; i < output_height; i++) {
+                for (int i = 0; i < output_height; i++) {
                     uint32_t dst_offset = linesize * i;
                     uint32_t src_offset = video_linesize * i;
                     memcpy(output_frame.data[0] +
