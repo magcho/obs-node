@@ -7,6 +7,7 @@
 #include <mutex>
 #include <obs.h>
 #include <util/circlebuf.h>
+#include <media-io/video-scaler.h>
 
 enum SourceType {
     Image = 0,
@@ -61,12 +62,6 @@ private:
             const float *peak,
             const float *input_peak);
 
-    static void video_output_callback(
-            void *param,
-            uint32_t cx,
-            uint32_t cy
-    );
-
     static bool audio_output_callback(
             void *param,
             uint64_t start_ts_in,
@@ -76,13 +71,8 @@ private:
             struct audio_output_data *mixes
     );
 
-    static void audio_capture_callback(
-            void *param,
-            obs_source_t *source,
-            const struct audio_data *audio_data,
-            bool muted
-    );
-
+    static void source_media_get_frame_callback(void *param, calldata_t *data);
+    static void source_media_get_audio_callback(void *param, calldata_t *data);
     static void source_activate_callback(void *param, calldata_t *data);
     static void source_deactivate_callback(void *param, calldata_t *data);
 
@@ -90,6 +80,7 @@ private:
     void stopOutput();
     void play();
     void pauseToBeginning();
+    void create_video_scaler(obs_source_frame *frame);
 
     std::string id;
     std::string sceneId;
@@ -108,4 +99,13 @@ private:
     gs_stagesurf_t *output_stagesurface;
     circlebuf output_audio_buf[MAX_AUDIO_CHANNELS];
     std::mutex output_audio_buf_mutex;
+    std::mutex timing_mutex;
+    uint64_t audio_time;
+    uint64_t next_audio_time;
+    uint64_t video_time;
+    int64_t timing_adjust;
+    circlebuf buffered_timestamps;
+    video_scaler_t *video_scaler;
+    audio_output_info aoi;
+    video_output_info voi;
 };
