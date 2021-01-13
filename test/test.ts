@@ -69,6 +69,9 @@ const sources: Source[] = [
             url: 'test.mp4',
             hardwareDecoder: false,
             startOnActive: true,
+            fpsNum: 25,
+            fpsDen: 1,
+            samplerate: 44100,
             output: {
                 server: 'rtmp://host.docker.internal/preview',
                 key: 'source2',

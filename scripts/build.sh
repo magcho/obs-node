@@ -111,7 +111,7 @@ fi
 
 if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-node' ]]; then
   echo "Building obs-node"
-  rm -rf build && mkdir -p build
+  mkdir -p build
   if [[ ! -d "$BASE_DIR/node_modules/" ]]; then
     npm ci
   fi
