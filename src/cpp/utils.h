@@ -17,6 +17,11 @@ inline int getNapiInt(Napi::Object object, const std::string &property) {
     return value.As<Napi::Number>();
 }
 
+inline int getNapiIntOrDefault(Napi::Object object, const std::string &property, int defaultValue) {
+    auto value = object.Get(property);
+    return value.IsUndefined() ? defaultValue : value.As<Napi::Number>();
+}
+
 inline std::string getNapiString(Napi::Object object, const std::string &property) {
     auto value = object.Get(property);
     if (value.IsUndefined()) {

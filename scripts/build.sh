@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-OBS_STUDIO_VERSION=26.0.2-patch4
+OBS_STUDIO_VERSION=26.0.2-patch5
 MAXOS_DEPS_VERSION=2020-08-30
 
 BASE_DIR="$(pwd)"
@@ -111,7 +111,7 @@ fi
 
 if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-node' ]]; then
   echo "Building obs-node"
-  rm -rf build && mkdir -p build
+  mkdir -p build
   if [[ ! -d "$BASE_DIR/node_modules/" ]]; then
     npm ci
   fi
