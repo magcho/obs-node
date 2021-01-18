@@ -8,14 +8,16 @@ std::string Studio::obsPath;
 
 Studio::Studio(Settings *settings) :
           settings(settings),
-          currentScene(nullptr) {
+          currentScene(nullptr),
+          output(nullptr) {
+
     if (settings->output) {
-        this->output = new Output(settings->output);
+        output = new Output(settings->output);
     }
 }
 
 Studio::~Studio() {
-    delete this->output;
+    delete output;
 }
 
 void Studio::startup() {
