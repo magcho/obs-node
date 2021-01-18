@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <obs.h>
 #include <util/circlebuf.h>
 #include <media-io/video-scaler.h>
@@ -71,6 +72,8 @@ private:
             struct audio_output_data *mixes
     );
 
+    static void video_output_callback(void *param);
+
     static void source_media_get_frame_callback(void *param, calldata_t *data);
     static void source_media_get_audio_callback(void *param, calldata_t *data);
     static void source_activate_callback(void *param, calldata_t *data);
@@ -93,19 +96,23 @@ private:
     obs_sceneitem_t *obs_scene_item;
     obs_volmeter_t *obs_volmeter;
     obs_fader_t *obs_fader;
-    video_t *output_video;
-    audio_t *output_audio;
-    gs_texrender_t *output_texrender;
-    gs_stagesurf_t *output_stagesurface;
-    circlebuf output_audio_buf[MAX_AUDIO_CHANNELS];
-    std::mutex output_audio_buf_mutex;
-    std::mutex timing_mutex;
-    uint64_t audio_time;
-    uint64_t next_audio_time;
-    uint64_t video_time;
-    int64_t timing_adjust;
-    circlebuf buffered_timestamps;
+
+    // output
+    video_t *video;
+    std::thread video_thread;
+    volatile bool video_stop;
     video_scaler_t *video_scaler;
-    audio_output_info aoi;
-    video_output_info voi;
+    circlebuf frame_buf;
+    std::mutex frame_buf_mutex;
+    uint64_t video_time;
+
+    audio_t *audio;
+    circlebuf audio_buf[MAX_AUDIO_CHANNELS];
+    std::mutex audio_buf_mutex;
+    circlebuf audio_timestamp_buf;
+    uint64_t audio_time;
+    uint64_t last_audio_time;
+
+    int64_t timing_adjust;
+    std::mutex timing_mutex;
 };

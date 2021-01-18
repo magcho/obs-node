@@ -90,7 +90,9 @@ void Studio::startup() {
 
         obs_post_load_modules();
 
-        output->start(obs_get_video(), obs_get_audio());
+        if (output) {
+            output->start(obs_get_video(), obs_get_audio());
+        }
 
         restore();
 
@@ -101,7 +103,9 @@ void Studio::startup() {
 }
 
 void Studio::shutdown() {
-    this->output->stop();
+    if (output) {
+        output->stop();
+    }
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
