@@ -200,11 +200,12 @@ bool Source::audio_output_callback(
         circlebuf_peek_front(&source->audio_timestamp_buf, &ts, sizeof(ts));
         // padding with mute
         size_t padding_size = AUDIO_OUTPUT_FRAMES * sizeof(float);
-        char padding[padding_size];
+        char *padding = new char[padding_size];
         memset(padding, 0, padding_size);
         for (size_t ch = 0; ch < channels; ch++) {
             circlebuf_push_front(&source->audio_buf[ch], padding, padding_size);
         }
+        delete[] padding;
     }
 
     size_t buf_size = source->audio_buf[0].size;
