@@ -34,7 +34,7 @@ OutputSettings::OutputSettings(const Napi::Object &outputSettings) {
 Settings::Settings(const Napi::Object &settings) :
         video(nullptr),
         audio(nullptr),
-        output(nullptr) {
+        outputs() {
 
     // video settings
     auto videoSettings = settings.Get("video").As<Napi::Object>();
@@ -45,9 +45,11 @@ Settings::Settings(const Napi::Object &settings) :
     audio = new AudioSettings(audioObject);
 
     // output settings
-    if (!settings.Get("output").IsUndefined()) {
-        auto outputObject = settings.Get("output").As<Napi::Object>();
-        output = new OutputSettings(outputObject);
+    if (!settings.Get("outputs").IsUndefined()) {
+        auto outputObjects = settings.Get("outputs").As<Napi::Array>();
+        for (int i = 0; i < outputObjects.Length(); ++i) {
+            outputs.push_back(new OutputSettings(outputObjects.Get(i).As<Napi::Object>()));
+        }
     }
 
     // Show log
@@ -64,7 +66,7 @@ Settings::Settings(const Napi::Object &settings) :
     blog(LOG_INFO, "=====================");
     blog(LOG_INFO, "sampleRate = %d", audio->sampleRate);
 
-    if (output) {
+    for (auto output : outputs) {
         blog(LOG_INFO, "Output Settings");
         blog(LOG_INFO, "=====================");
         blog(LOG_INFO, "server = %s", output->server.c_str());
@@ -86,12 +88,13 @@ Settings::Settings(const Napi::Object &settings) :
 Settings::~Settings() {
     delete video;
     delete audio;
-    delete output;
+    for (auto output : outputs) {
+        delete output;
+    }
 }
 
 SourceSettings::SourceSettings(const Napi::Object &settings) :
         output(nullptr) {
-
     type = getNapiString(settings, "type");
     isFile = getNapiBooleanOrDefault(settings, "isFile", false);
     url = getNapiString(settings, "url");

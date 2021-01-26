@@ -9,15 +9,17 @@ std::string Studio::obsPath;
 Studio::Studio(Settings *settings) :
           settings(settings),
           currentScene(nullptr),
-          output(nullptr) {
+          outputs() {
 
-    if (settings->output) {
-        output = new Output(settings->output);
+    for (auto o : settings->outputs) {
+        outputs.push_back(new Output(o));
     }
 }
 
 Studio::~Studio() {
-    delete output;
+    for (auto output : outputs) {
+        delete output;
+    }
 }
 
 void Studio::startup() {
@@ -92,7 +94,7 @@ void Studio::startup() {
 
         obs_post_load_modules();
 
-        if (output) {
+        for (auto output : outputs) {
             output->start(obs_get_video(), obs_get_audio());
         }
 
@@ -105,7 +107,7 @@ void Studio::startup() {
 }
 
 void Studio::shutdown() {
-    if (output) {
+    for (auto output : outputs) {
         output->stop();
     }
     obs_shutdown();

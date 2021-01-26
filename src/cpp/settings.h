@@ -44,7 +44,7 @@ public:
     ~Settings();
     VideoSettings *video;
     AudioSettings *audio;
-    OutputSettings *output;
+    std::vector<OutputSettings*> outputs;
 };
 
 class SourceSettings {

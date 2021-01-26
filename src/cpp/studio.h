@@ -57,5 +57,5 @@ private:
     std::map<std::string, Display *> displays;
     std::map<std::string, Dsk *> dsks;
     Scene *currentScene;
-    Output *output;
+    std::vector<Output *> outputs;
 };
