@@ -37,6 +37,7 @@ void Output::start(video_t *video, audio_t *audio) {
     obs_data_set_int(video_encoder_settings, "bitrate", settings->videoBitrateKbps);
 
     obs_encoder_update(video_encoder, video_encoder_settings);
+    obs_encoder_set_scaled_size(video_encoder, settings->width, settings->height);
     obs_encoder_set_video(video_encoder, video);
 
     // audio encoder

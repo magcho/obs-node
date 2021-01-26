@@ -91,7 +91,7 @@ declare namespace obs {
     export interface Settings {
         video: VideoSettings;
         audio: AudioSettings;
-        output?: OutputSettings;
+        outputs?: OutputSettings[];
     }
 
     export type VolmeterCallback = (
