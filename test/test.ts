@@ -20,20 +20,22 @@ const settings: obs.Settings = {
     audio: {
         sampleRate: 44100,
     },
-    output: {
-        server: 'rtmp://host.docker.internal/live',
-        key: 'output',
-        hardwareEnable: false,
-        width: 1280,
-        height: 720,
-        keyintSec: 1,
-        rateControl: 'CBR',
-        preset: 'ultrafast',
-        profile: 'main',
-        tune: 'zerolatency',
-        videoBitrateKbps: 1000,
-        audioBitrateKbps: 64,
-    },
+    outputs: [
+        {
+            server: 'rtmp://host.docker.internal/live',
+            key: 'output',
+            hardwareEnable: false,
+            width: 1280,
+            height: 720,
+            keyintSec: 1,
+            rateControl: 'CBR',
+            preset: 'ultrafast',
+            profile: 'main',
+            tune: 'zerolatency',
+            videoBitrateKbps: 1000,
+            audioBitrateKbps: 64,
+        },
+    ],
 };
 
 const dsks = [
@@ -69,9 +71,9 @@ const sources: Source[] = [
             url: 'test.mp4',
             hardwareDecoder: false,
             startOnActive: true,
-            fpsNum: 25,
+            fpsNum: 24,
             fpsDen: 1,
-            samplerate: 44100,
+            samplerate: 48000,
             output: {
                 server: 'rtmp://host.docker.internal/preview',
                 key: 'source2',

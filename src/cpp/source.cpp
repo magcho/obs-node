@@ -141,26 +141,26 @@ void Source::source_media_get_audio_callback(void *param, calldata_t *data) {
 
     source->audio_buf_mutex.lock();
 
-    uint64_t audio_time = audio->timestamp + timing_adjust;
-    uint64_t diff = uint64_diff(source->audio_time, audio_time);
-    uint64_t last_diff = uint64_diff(source->last_audio_time, audio_time);
+    uint64_t current_audio_time = audio->timestamp + timing_adjust;
+    uint64_t diff = uint64_diff(source->last_audio_time, current_audio_time);
 
-    if (!source->audio_time || diff > MAX_AUDIO_BUFFER) {
-        blog(LOG_INFO, "reset audio buffer: %lld ms", diff / 1000000);
+    if (!source->audio_time || current_audio_time < source->audio_time || current_audio_time - source->audio_time > MAX_AUDIO_BUFFER) {
+        blog(LOG_INFO, "[%s] reset audio buffer, audio_time: %lld ms, current audio time: %lld ms",
+             source->id.c_str(), source->audio_time, current_audio_time);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_pop_front(&source->audio_buf[i], nullptr, source->audio_buf[i].size);
         }
-        source->audio_time = audio_time;
-        source->last_audio_time = audio_time;
-    } else if (last_diff > AUDIO_SMOOTH_THRESHOLD) {
-        blog(LOG_INFO, "audio buffer placement: %lld ms", last_diff / 1000000);
-        size_t buf_placement = ns_to_audio_frames(rate, audio_time - source->audio_time) * sizeof(float);
+        source->audio_time = current_audio_time;
+        source->last_audio_time = current_audio_time;
+    } else if (diff > AUDIO_SMOOTH_THRESHOLD) {
+        blog(LOG_INFO, "[%s] audio buffer placement: %lld", source->id.c_str(), diff);
+        size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - source->audio_time) * sizeof(float);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_place(&source->audio_buf[i], buf_placement, audio->data[i], size);
             circlebuf_pop_back(&source->audio_buf[i], nullptr,
                                source->audio_buf[i].size - (buf_placement + size));
         }
-        source->last_audio_time = audio_time;
+        source->last_audio_time = current_audio_time;
     } else {
         for (size_t i = 0; i < channels; i++) {
             circlebuf_push_back(&source->audio_buf[i], audio->data[i], size);
