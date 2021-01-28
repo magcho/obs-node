@@ -1,19 +1,5 @@
 #include "source.h"
 #include "callback.h"
-#include <media-io/video-frame.h>
-#include <util/platform.h>
-
-#define MAX_AUDIO_BUFFER 500000000 // 500ms
-#define AUDIO_SMOOTH_THRESHOLD 70000000
-
-struct ts_info {
-    uint64_t start;
-    uint64_t end;
-};
-
-static inline uint64_t uint64_diff(uint64_t ts1, uint64_t ts2) {
-    return (ts1 < ts2) ? (ts2 - ts1) : (ts1 - ts2);
-}
 
 SourceType Source::getSourceType(const std::string &sourceType) {
     if (sourceType == "Image") {
@@ -53,200 +39,6 @@ void Source::volmeter_callback(void *param, const float *magnitude, const float 
     }
 }
 
-void Source::source_media_get_frame_callback(void *param, calldata_t *data) {
-    auto source = (Source *) param;
-    auto *frame = (obs_source_frame *) calldata_ptr(data, "frame");
-
-    // create video scaler after first frame is received
-    if (!source->video_scaler) {
-        source->create_video_scaler(frame);
-    }
-
-    source->frame_buf_mutex.lock();
-
-    obs_source_frame *new_frame = obs_source_frame_create(frame->format, frame->width, frame->height);
-    obs_source_frame_copy(new_frame, frame);
-
-    circlebuf_push_back(&source->frame_buf, &new_frame, sizeof(void *));
-
-    source->frame_buf_mutex.unlock();
-}
-
-void Source::video_output_callback(void *param) {
-    auto *source = (Source *) param;
-    const struct video_output_info *voi = video_output_get_info(source->video);
-    uint64_t frame_time_ns = util_mul_div64(1000000000UL, voi->fps_den, voi->fps_num);
-
-    while (!source->video_stop) {
-
-        source->frame_buf_mutex.lock();
-
-        while (source->frame_buf.size) {
-
-            if (!source->video_time) {
-                source->video_time = os_gettime_ns();
-            }
-
-            obs_source_frame *frame = nullptr;
-            circlebuf_pop_front(&source->frame_buf, &frame, sizeof(void *));
-
-            source->timing_mutex.lock();
-            source->timing_adjust = source->video_time - frame->timestamp;
-            source->timing_mutex.unlock();
-
-            struct video_frame output_frame = {};
-            if (video_output_lock_frame(source->video, &output_frame, 1, source->video_time)) {
-                video_scaler_scale(
-                        source->video_scaler,
-                        output_frame.data,
-                        output_frame.linesize,
-                        frame->data,
-                        frame->linesize
-                );
-                video_output_unlock_frame(source->video);
-            }
-
-            source->video_time += frame_time_ns;
-
-            bool paused = obs_source_media_get_state(source->obs_source) == OBS_MEDIA_STATE_PAUSED;
-            if (paused && !source->frame_buf.size) {
-                frame->timestamp += frame_time_ns;
-                circlebuf_push_back(&source->frame_buf, &frame, sizeof(void *));
-                break;
-            } else {
-                obs_source_frame_destroy(frame);
-            }
-        }
-
-        source->frame_buf_mutex.unlock();
-        os_sleepto_ns(source->video_time);
-    }
-}
-
-void Source::source_media_get_audio_callback(void *param, calldata_t *data) {
-    auto source = (Source *) param;
-    auto *audio = (obs_source_audio *) calldata_ptr(data, "audio");
-
-    size_t size = audio->frames * sizeof(float);
-    size_t channels = audio_output_get_channels(source->audio);
-    size_t rate = audio_output_get_sample_rate(source->audio);
-
-    source->timing_mutex.lock();
-    uint64_t timing_adjust = source->timing_adjust;
-    source->timing_mutex.unlock();
-
-    if (!timing_adjust) {
-        return;
-    }
-
-    source->audio_buf_mutex.lock();
-
-    uint64_t current_audio_time = audio->timestamp + timing_adjust;
-    uint64_t diff = uint64_diff(source->last_audio_time, current_audio_time);
-
-    if (!source->audio_time || current_audio_time < source->audio_time || current_audio_time - source->audio_time > MAX_AUDIO_BUFFER) {
-        blog(LOG_INFO, "[%s] reset audio buffer, audio_time: %lld ms, current audio time: %lld ms",
-             source->id.c_str(), source->audio_time, current_audio_time);
-        for (size_t i = 0; i < channels; i++) {
-            circlebuf_pop_front(&source->audio_buf[i], nullptr, source->audio_buf[i].size);
-        }
-        source->audio_time = current_audio_time;
-        source->last_audio_time = current_audio_time;
-    } else if (diff > AUDIO_SMOOTH_THRESHOLD) {
-        blog(LOG_INFO, "[%s] audio buffer placement: %lld", source->id.c_str(), diff);
-        size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - source->audio_time) * sizeof(float);
-        for (size_t i = 0; i < channels; i++) {
-            circlebuf_place(&source->audio_buf[i], buf_placement, audio->data[i], size);
-            circlebuf_pop_back(&source->audio_buf[i], nullptr,
-                               source->audio_buf[i].size - (buf_placement + size));
-        }
-        source->last_audio_time = current_audio_time;
-    } else {
-        for (size_t i = 0; i < channels; i++) {
-            circlebuf_push_back(&source->audio_buf[i], audio->data[i], size);
-        }
-    }
-
-    source->last_audio_time += audio_frames_to_ns(rate, audio->frames);
-    source->audio_buf_mutex.unlock();
-}
-
-bool Source::audio_output_callback(
-        void *param,
-        uint64_t start_ts_in,
-        uint64_t end_ts_in,
-        uint64_t *out_ts,
-        uint32_t mixers,
-        struct audio_output_data *mixes) {
-
-    UNUSED_PARAMETER(mixers);
-
-    auto source = (Source *) param;
-    auto audio = source->audio;
-    size_t channels = audio_output_get_channels(audio);
-    size_t rate = audio_output_get_sample_rate(source->audio);
-
-    source->audio_buf_mutex.lock();
-
-    ts_info ts = {start_ts_in, end_ts_in};
-    uint64_t min_ts = start_ts_in - MAX_AUDIO_BUFFER;
-
-    circlebuf_push_back(&source->audio_timestamp_buf, &ts, sizeof(ts));
-    circlebuf_peek_front(&source->audio_timestamp_buf, &ts, sizeof(ts));
-
-    // if audio go forward
-    while (source->audio_timestamp_buf.size > sizeof(ts) && source->audio_time >= ts.end) {
-        circlebuf_pop_front(&source->audio_timestamp_buf, nullptr, sizeof(ts));
-        circlebuf_peek_front(&source->audio_timestamp_buf, &ts, sizeof(ts));
-        // padding with mute
-        size_t padding_size = AUDIO_OUTPUT_FRAMES * sizeof(float);
-        char *padding = new char[padding_size];
-        memset(padding, 0, padding_size);
-        for (size_t ch = 0; ch < channels; ch++) {
-            circlebuf_push_front(&source->audio_buf[ch], padding, padding_size);
-        }
-        delete[] padding;
-    }
-
-    size_t buf_size = source->audio_buf[0].size;
-    bool paused = obs_source_media_get_state(source->obs_source) == OBS_MEDIA_STATE_PAUSED;
-    bool result;
-
-    if (!source->audio_time || paused || source->audio_time < min_ts || source->audio_time >= ts.end) {
-        // if audio stopped or out of range, send mute
-        result = true;
-    } else if (buf_size < ns_to_audio_frames(rate, ts.end - source->audio_time) * sizeof(float)) {
-        // if audio does not catch up, wait buffer
-        result = false;
-    } else {
-        size_t start_frame;
-        if (source->audio_time < ts.start) {
-            // trunc buffer
-            for (size_t ch = 0; ch < channels; ch++) {
-                circlebuf_pop_front(&source->audio_buf[ch], nullptr,
-                                    ns_to_audio_frames(rate, ts.start - source->audio_time) * sizeof(float));
-            }
-            start_frame = 0;
-        } else {
-            start_frame = ns_to_audio_frames(rate, source->audio_time - ts.start);
-        }
-        size_t audio_size = (AUDIO_OUTPUT_FRAMES - start_frame) * sizeof(float);
-        for (size_t ch = 0; ch < channels; ch++) {
-            circlebuf_pop_front(&source->audio_buf[ch], mixes[0].data[ch] + start_frame, audio_size);
-        }
-        result = true;
-        source->audio_time = ts.end;
-    }
-
-    *out_ts = ts.start;
-    if (result) {
-        circlebuf_pop_front(&source->audio_timestamp_buf, nullptr, sizeof(ts));
-    }
-
-    source->audio_buf_mutex.unlock();
-    return result;
-}
-
 void Source::source_activate_callback(void *param, calldata_t *data) {
     UNUSED_PARAMETER(data);
     auto source = (Source *) param;
@@ -271,26 +63,11 @@ Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene,
         settings(settings),
         type(Source::getSourceType(settings->type)),
         url(settings->url),
-        output(settings->output ? new Output(settings->output) : nullptr),
         obs_source(nullptr),
         obs_scene_item(nullptr),
         obs_volmeter(nullptr),
         obs_fader(nullptr),
-        video(nullptr),
-        video_stop(false),
-        video_thread(),
-        video_scaler(nullptr),
-        frame_buf(),
-        frame_buf_mutex(),
-        video_time(0),
-        audio(nullptr),
-        audio_buf(),
-        audio_buf_mutex(),
-        audio_timestamp_buf(),
-        audio_time(0),
-        last_audio_time(0),
-        timing_adjust(0),
-        timing_mutex() {
+        transcoder(nullptr) {
 }
 
 void Source::start() {
@@ -349,8 +126,9 @@ void Source::start() {
     obs_fader_attach_source(obs_fader, obs_source);
 
     // source output
-    if (output) {
-        startOutput();
+    if (settings->output) {
+        transcoder = new SourceTranscoder();
+        transcoder->start(this);
     }
 
     // pause to beginning if it's start at active
@@ -368,9 +146,12 @@ void Source::stop() {
     signal_handler_disconnect(handler, "activate", source_activate_callback, this);
     signal_handler_disconnect(handler, "deactivate", source_deactivate_callback, this);
 
-    if (output) {
-        stopOutput();
+    if (transcoder) {
+        transcoder->stop();
+        delete transcoder;
+        transcoder = nullptr;
     }
+
     if (obs_volmeter) {
         obs_volmeter_remove_callback(obs_volmeter, volmeter_callback, this);
         obs_volmeter_detach_source(obs_volmeter);
@@ -449,97 +230,6 @@ bool Source::getAudioMonitor() {
     return obs_source && obs_source_get_monitoring_type(obs_source) == OBS_MONITORING_TYPE_MONITOR_ONLY;
 }
 
-void Source::startOutput() {
-    int width = settings->output->width;
-    int height = settings->output->height;
-    int fpsNum = settings->fpsNum;
-    int fpsDen = settings->fpsDen;
-    int samplerate = settings->samplerate;
-    if (width == 0 || height == 0 || fpsNum == 0 || fpsDen == 0 || samplerate == 0) {
-        throw std::runtime_error(
-                "Source width, height, fpsNum, fpsDen, samplerate should not empty if the source has an output.");
-    }
-
-    // video output
-    obs_video_info ovi = {};
-    obs_get_video_info(&ovi);
-
-    video_output_info voi = {};
-    std::string videoOutputName = std::string("source_video_output_") + id;
-    voi.name = videoOutputName.c_str();
-    voi.format = VIDEO_FORMAT_BGRA;
-    voi.width = width;
-    voi.height = height;
-    voi.fps_num = fpsNum;
-    voi.fps_den = fpsDen;
-    voi.cache_size = 16;
-    video_output_open(&video, &voi);
-
-    video_thread = std::thread(&Source::video_output_callback, this);
-
-    // audio output
-    for (auto &buf : audio_buf) {
-        circlebuf_init(&buf);
-    }
-
-    obs_audio_info oai = {};
-    obs_get_audio_info(&oai);
-
-    audio_output_info aoi = {};
-    std::string audioOutputName = std::string("source_audio_output_") + id;
-    aoi.name = audioOutputName.c_str();
-    aoi.samples_per_sec = samplerate;
-    aoi.format = AUDIO_FORMAT_FLOAT_PLANAR;
-    aoi.speakers = oai.speakers;
-    aoi.input_callback = audio_output_callback;
-    aoi.input_param = this;
-
-    audio_output_open(&audio, &aoi);
-
-    output->start(video, audio);
-
-    signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
-    signal_handler_connect(handler, "media_get_frame", source_media_get_frame_callback, this);
-    signal_handler_connect(handler, "media_get_audio", source_media_get_audio_callback, this);
-}
-
-void Source::stopOutput() {
-    signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
-    signal_handler_disconnect(handler, "media_get_frame", source_media_get_frame_callback, this);
-    signal_handler_disconnect(handler, "media_get_audio", source_media_get_audio_callback, this);
-
-    output->stop();
-
-    // video stop
-    video_stop = true;
-    video_thread.join();
-    video_stop = false;
-    video_output_stop(video);
-    video_output_close(video);
-    if (video_scaler) {
-        video_scaler_destroy(video_scaler);
-        video_scaler = nullptr;
-    }
-    while (frame_buf.size > 0) {
-        obs_source_frame *frame = nullptr;
-        circlebuf_pop_front(&frame_buf, &frame, sizeof(void *));
-        obs_source_frame_destroy(frame);
-    }
-
-    // audio stop
-    audio_output_close(audio);
-
-    for (auto &buf : audio_buf) {
-        circlebuf_free(&buf);
-    }
-
-    // reset timing
-    video_time = 0;
-    audio_time = 0;
-    last_audio_time = 0;
-    timing_adjust = 0;
-}
-
 void Source::play() {
     if (obs_source) {
         obs_source_media_play_pause(obs_source, false);
@@ -550,28 +240,5 @@ void Source::pauseToBeginning() {
     if (obs_source) {
         obs_source_media_play_pause(obs_source, true);
         obs_source_media_set_time(obs_source, 0);
-    }
-}
-
-void Source::create_video_scaler(obs_source_frame *frame) {
-    const struct video_output_info *voi = video_output_get_info(video);
-    struct video_scale_info src = {
-            .format = frame->format,
-            .width = frame->width,
-            .height = frame->height,
-            .range = frame->full_range ? VIDEO_RANGE_FULL : VIDEO_RANGE_DEFAULT,
-            .colorspace = VIDEO_CS_DEFAULT
-    };
-    struct video_scale_info dest = {
-            .format = voi->format,
-            .width = voi->width,
-            .height = voi->height,
-            .range = VIDEO_RANGE_DEFAULT,
-            .colorspace = VIDEO_CS_DEFAULT
-    };
-
-    int ret = video_scaler_create(&video_scaler, &dest, &src, VIDEO_SCALE_FAST_BILINEAR);
-    if (ret != VIDEO_SCALER_SUCCESS) {
-        throw std::runtime_error("Failed to create video scaler.");
     }
 }

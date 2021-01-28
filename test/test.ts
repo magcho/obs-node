@@ -33,7 +33,7 @@ const settings: obs.Settings = {
             profile: 'main',
             tune: 'zerolatency',
             videoBitrateKbps: 1000,
-            audioBitrateKbps: 64,
+            audioBitrateKbps: 64
         },
     ],
 };
@@ -71,9 +71,6 @@ const sources: Source[] = [
             url: 'test.mp4',
             hardwareDecoder: false,
             startOnActive: true,
-            fpsNum: 24,
-            fpsDen: 1,
-            samplerate: 48000,
             output: {
                 server: 'rtmp://host.docker.internal/preview',
                 key: 'source2',

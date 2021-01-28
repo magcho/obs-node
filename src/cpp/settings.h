@@ -56,8 +56,5 @@ public:
     std::string url;
     bool startOnActive;
     bool hardwareDecoder;
-    int fpsNum;
-    int fpsDen;
-    int samplerate;
     OutputSettings *output;
 };

@@ -100,9 +100,6 @@ SourceSettings::SourceSettings(const Napi::Object &settings) :
     url = getNapiString(settings, "url");
     startOnActive = getNapiBooleanOrDefault(settings, "startOnActive", false);
     hardwareDecoder = getNapiBoolean(settings, "hardwareDecoder");
-    fpsNum = getNapiIntOrDefault(settings, "fpsNum", 0);
-    fpsDen = getNapiIntOrDefault(settings, "fpsDen", 0);
-    samplerate = getNapiIntOrDefault(settings, "samplerate", 0);
     if (!settings.Get("output").IsUndefined()) {
         auto outputSettings = settings.Get("output").As<Napi::Object>();
         output = new OutputSettings(outputSettings);
