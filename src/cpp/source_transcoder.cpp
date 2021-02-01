@@ -245,7 +245,7 @@ void SourceTranscoder::source_media_get_audio_callback(void *param, calldata_t *
 
     if (!transcoder->audio_time || current_audio_time < transcoder->audio_time ||
         current_audio_time - transcoder->audio_time > AUDIO_RESET_THRESHOLD) {
-        blog(LOG_INFO, "[%s] reset audio buffer, audio time: %ulld ms, current audio time: %ulld ms",
+        blog(LOG_INFO, "[%s] reset audio buffer, audio time: %llu ms, current audio time: %llu ms",
              transcoder->source->id.c_str(), transcoder->audio_time, current_audio_time);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_pop_front(&transcoder->audio_buf[i], nullptr, transcoder->audio_buf[i].size);
@@ -253,7 +253,7 @@ void SourceTranscoder::source_media_get_audio_callback(void *param, calldata_t *
         transcoder->audio_time = current_audio_time;
         transcoder->last_audio_time = current_audio_time;
     } else if (diff > AUDIO_SMOOTH_THRESHOLD) {
-        blog(LOG_INFO, "[%s] audio buffer placement: %ulld", transcoder->source->id.c_str(), diff);
+        blog(LOG_INFO, "[%s] audio buffer placement: %llu", transcoder->source->id.c_str(), diff);
         size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - transcoder->audio_time) * sizeof(float);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_place(&transcoder->audio_buf[i], buf_placement, audio_data[i], audio_size);
@@ -300,7 +300,7 @@ bool SourceTranscoder::audio_output_callback(
         result = true;
     } else if (transcoder->audio_time >= ts.end) {
         // audio go forward, send mute
-        blog(LOG_INFO, "[%s] audio time go forward, audio_time: %ulld, ts.end: %ulld",
+        blog(LOG_INFO, "[%s] audio time go forward, audio_time: %llu, ts.end: %llu",
              transcoder->source->id.c_str(), transcoder->audio_time, ts.end);
         result = true;
     } else if (buf_size < ns_to_audio_frames(rate, ts.end - transcoder->audio_time) * sizeof(float)) {
