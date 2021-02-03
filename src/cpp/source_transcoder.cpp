@@ -3,7 +3,7 @@
 #include <media-io/video-frame.h>
 #include <util/platform.h>
 
-#define AUDIO_RESET_THRESHOLD 500000000
+#define AUDIO_RESET_THRESHOLD 2000000000
 #define AUDIO_SMOOTH_THRESHOLD 70000000
 #define MAX_AUDIO_TIMESTAMP_BUFFER_SIZE 10 * sizeof(ts_info)
 
