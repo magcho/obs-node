@@ -35,9 +35,14 @@ private:
             struct audio_output_data *mixes
     );
 
-    static void source_media_get_audio_callback(void *param, calldata_t *data);
+    static void audio_capture_callback(
+            void *param,
+            obs_source_t *source,
+            const struct audio_data *audio_data,
+            bool muted
+    );
 
-    void create_audio_resampler(obs_source_audio *audio);
+    void reset_audio();
 
     Source *source;
     Output *output;
@@ -45,6 +50,9 @@ private:
     video_t *video;
     gs_texrender_t *video_texrender;
     gs_stagesurf_t *video_stagesurface;
+    uint64_t last_video_timestamp;
+    uint32_t last_video_lagged_frames;
+    bool first_frame_outputed;
 
     audio_t *audio;
     circlebuf audio_buf[MAX_AUDIO_CHANNELS];
@@ -52,7 +60,6 @@ private:
     circlebuf audio_timestamp_buf;
     uint64_t audio_time;
     uint64_t last_audio_time;
-    audio_resampler_t *audio_resampler;
 
     int64_t timing_adjust;
     std::mutex timing_mutex;

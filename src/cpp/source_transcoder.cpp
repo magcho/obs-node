@@ -5,7 +5,7 @@
 
 #define AUDIO_RESET_THRESHOLD 2000000000
 #define AUDIO_SMOOTH_THRESHOLD 70000000
-#define MAX_AUDIO_TIMESTAMP_BUFFER_SIZE 10 * sizeof(ts_info)
+#define MAX_AUDIO_TIMESTAMP_BUFFER 1000000000
 
 struct ts_info {
     uint64_t start;
@@ -22,13 +22,15 @@ SourceTranscoder::SourceTranscoder() :
         video(nullptr),
         video_stagesurface(nullptr),
         video_texrender(nullptr),
+        last_video_timestamp(0),
+        last_video_lagged_frames(0),
+        first_frame_outputed(false),
         audio(nullptr),
         audio_buf(),
         audio_buf_mutex(),
         audio_timestamp_buf(),
         audio_time(0),
         last_audio_time(0),
-        audio_resampler(nullptr),
         timing_adjust(0),
         timing_mutex() {
 }
@@ -76,18 +78,14 @@ void SourceTranscoder::start(Source *s) {
     aoi.input_callback = audio_output_callback;
     aoi.input_param = this;
 
+    obs_source_add_audio_capture_callback(source->obs_source, audio_capture_callback, this);
+
     audio_output_open(&audio, &aoi);
 
     output->start(video, audio);
-
-    signal_handler_t *handler = obs_source_get_signal_handler(source->obs_source);
-    signal_handler_connect(handler, "media_get_audio", source_media_get_audio_callback, this);
 }
 
 void SourceTranscoder::stop() {
-    signal_handler_t *handler = obs_source_get_signal_handler(source->obs_source);
-    signal_handler_disconnect(handler, "media_get_audio", source_media_get_audio_callback, this);
-
     output->stop();
     delete output;
     output = nullptr;
@@ -103,16 +101,15 @@ void SourceTranscoder::stop() {
     video_output_stop(video);
     video_output_close(video);
 
+    last_video_timestamp = 0;
+    last_video_lagged_frames = 0;
+    first_frame_outputed = false;
+
     // audio stop
     audio_output_close(audio);
 
     for (auto &buf : audio_buf) {
         circlebuf_free(&buf);
-    }
-
-    if (audio_resampler) {
-        audio_resampler_destroy(audio_resampler);
-        audio_resampler = nullptr;
     }
 
     audio_time = 0;
@@ -141,6 +138,16 @@ void SourceTranscoder::source_video_output_callback(void *param, uint32_t cx, ui
     float scaleX = (float) output_width / (float) source_width;
     float scaleY = (float) output_height / (float) source_height;
 
+    uint64_t video_time = obs_get_video_frame_time();
+    uint64_t frame_timestamp = obs_source_get_frame_timestamp(transcoder->source->obs_source);
+
+    if (frame_timestamp != transcoder->last_video_timestamp) {
+        transcoder->timing_mutex.lock();
+        transcoder->timing_adjust = video_time - frame_timestamp;
+        transcoder->timing_mutex.unlock();
+        transcoder->last_video_timestamp = frame_timestamp;
+    }
+
     auto texrender = transcoder->video_texrender;
     auto stagesurface = transcoder->video_stagesurface;
     auto video = transcoder->video;
@@ -163,16 +170,12 @@ void SourceTranscoder::source_video_output_callback(void *param, uint32_t cx, ui
         gs_blend_state_pop();
         gs_texrender_end(texrender);
 
-        uint64_t os_time = os_gettime_ns();
-        uint64_t frame_timestamp = obs_source_get_frame_timestamp(transcoder->source->obs_source);
-        if (frame_timestamp) {
-            transcoder->timing_mutex.lock();
-            transcoder->timing_adjust = os_time - frame_timestamp;
-            transcoder->timing_mutex.unlock();
-        }
+        uint32_t lagged_frames = obs_get_lagged_frames();
+        uint32_t frame_count = transcoder->first_frame_outputed ? lagged_frames - transcoder->last_video_lagged_frames + 1 : 1;
+        transcoder->last_video_lagged_frames = lagged_frames;
 
         struct video_frame output_frame = {};
-        if (video_output_lock_frame(video, &output_frame, 1, os_time)) {
+        if (video_output_lock_frame(video, &output_frame, frame_count, video_time)) {
             gs_stage_texture(stagesurface, gs_texrender_get_texture(texrender));
             uint8_t *video_data = nullptr;
             uint32_t video_linesize;
@@ -188,18 +191,20 @@ void SourceTranscoder::source_video_output_callback(void *param, uint32_t cx, ui
                 }
                 gs_stagesurface_unmap(stagesurface);
             }
+            transcoder->first_frame_outputed = true;
             video_output_unlock_frame(video);
         }
     }
 }
 
-void SourceTranscoder::source_media_get_audio_callback(void *param, calldata_t *data) {
+void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source, const struct audio_data *audio_data, bool muted) {
+    UNUSED_PARAMETER(source);
+    UNUSED_PARAMETER(muted);
+
     auto transcoder = (SourceTranscoder *) param;
-    auto *audio = (obs_source_audio *) calldata_ptr(data, "audio");
 
     size_t channels = audio_output_get_channels(transcoder->audio);
     size_t rate = audio_output_get_sample_rate(transcoder->audio);
-    const struct audio_output_info *aoi = audio_output_get_info(transcoder->audio);
 
     transcoder->timing_mutex.lock();
     uint64_t timing_adjust = transcoder->timing_adjust;
@@ -209,44 +214,16 @@ void SourceTranscoder::source_media_get_audio_callback(void *param, calldata_t *
         return;
     }
 
-    if (!transcoder->audio_resampler && (
-            audio->samples_per_sec != aoi->samples_per_sec ||
-            audio->format != aoi->format ||
-            audio->speakers != aoi->speakers)) {
-        transcoder->create_audio_resampler(audio);
-    }
-
-    auto audio_data = (uint8_t **) audio->data;
-    auto audio_frames = audio->frames;
-
-    if (transcoder->audio_resampler) {
-        uint8_t *resampled_data[MAX_AV_PLANES];
-        uint32_t resampled_frames = 0;
-        uint64_t resample_offset = 0;
-        memset(resampled_data, 0, sizeof(resampled_data));
-        audio_resampler_resample(
-                transcoder->audio_resampler,
-                resampled_data,
-                &resampled_frames,
-                &resample_offset,
-                audio->data,
-                audio->frames
-        );
-        audio_data = resampled_data;
-        audio_frames = resampled_frames;
-        audio->timestamp -= resample_offset;
-    }
-
     transcoder->audio_buf_mutex.lock();
 
-    uint64_t current_audio_time = audio->timestamp + timing_adjust;
+    uint64_t current_audio_time = audio_data->timestamp + timing_adjust;
     uint64_t diff = uint64_diff(transcoder->last_audio_time, current_audio_time);
-    size_t audio_size = audio_frames * sizeof(float);
+    size_t audio_size = audio_data->frames * sizeof(float);
 
     if (!transcoder->audio_time || current_audio_time < transcoder->audio_time ||
         current_audio_time - transcoder->audio_time > AUDIO_RESET_THRESHOLD) {
-        blog(LOG_INFO, "[%s] reset audio buffer, audio time: %llu ms, current audio time: %llu ms",
-             transcoder->source->id.c_str(), transcoder->audio_time, current_audio_time);
+        blog(LOG_INFO, "[%s] reset audio buffer, audio timestamp: %llu, audio time: %llu ms, current audio time: %llu ms",
+             transcoder->source->id.c_str(), audio_data->timestamp, transcoder->audio_time, current_audio_time);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_pop_front(&transcoder->audio_buf[i], nullptr, transcoder->audio_buf[i].size);
         }
@@ -256,18 +233,18 @@ void SourceTranscoder::source_media_get_audio_callback(void *param, calldata_t *
         blog(LOG_INFO, "[%s] audio buffer placement: %llu", transcoder->source->id.c_str(), diff);
         size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - transcoder->audio_time) * sizeof(float);
         for (size_t i = 0; i < channels; i++) {
-            circlebuf_place(&transcoder->audio_buf[i], buf_placement, audio_data[i], audio_size);
+            circlebuf_place(&transcoder->audio_buf[i], buf_placement, audio_data->data[i], audio_size);
             circlebuf_pop_back(&transcoder->audio_buf[i], nullptr,
                                transcoder->audio_buf[i].size - (buf_placement + audio_size));
         }
         transcoder->last_audio_time = current_audio_time;
     } else {
         for (size_t i = 0; i < channels; i++) {
-            circlebuf_push_back(&transcoder->audio_buf[i], audio_data[i], audio_size);
+            circlebuf_push_back(&transcoder->audio_buf[i], audio_data->data[i], audio_size);
         }
     }
 
-    transcoder->last_audio_time += audio_frames_to_ns(rate, audio_frames);
+    transcoder->last_audio_time += audio_frames_to_ns(rate, audio_data->frames);
     transcoder->audio_buf_mutex.unlock();
 }
 
@@ -291,62 +268,72 @@ bool SourceTranscoder::audio_output_callback(
     circlebuf_push_back(&transcoder->audio_timestamp_buf, &ts, sizeof(ts));
     circlebuf_peek_front(&transcoder->audio_timestamp_buf, &ts, sizeof(ts));
 
-    size_t buf_size = transcoder->audio_buf[0].size;
     bool paused = obs_source_media_get_state(transcoder->source->obs_source) == OBS_MEDIA_STATE_PAUSED;
-    bool result;
+    bool result = false;
 
     if (!transcoder->audio_time || paused) {
-        // audio stopped, send mute
+        // audio stopped, reset audio and send mute
+        transcoder->reset_audio();
         result = true;
     } else if (transcoder->audio_time >= ts.end) {
         // audio go forward, send mute
-        blog(LOG_INFO, "[%s] audio time go forward, audio_time: %llu, ts.end: %llu",
+        blog(LOG_INFO, "[%s] audio go forward, audio time: %llu, ts.end: %llu",
              transcoder->source->id.c_str(), transcoder->audio_time, ts.end);
         result = true;
-    } else if (buf_size < ns_to_audio_frames(rate, ts.end - transcoder->audio_time) * sizeof(float)) {
-        // audio does not catch up, wait buffer
-        result = false;
     } else {
-        size_t start_frame;
+        size_t buffer_size = transcoder->audio_buf[0].size;
         if (transcoder->audio_time < ts.start) {
             // trunc buffer
-            for (size_t ch = 0; ch < channels; ch++) {
-                circlebuf_pop_front(&transcoder->audio_buf[ch], nullptr,
-                                    ns_to_audio_frames(rate, ts.start - transcoder->audio_time) * sizeof(float));
+            size_t trunc_size = ns_to_audio_frames(rate, ts.start - transcoder->audio_time) * sizeof(float);
+            if (buffer_size < trunc_size) {
+                for (size_t ch = 0; ch < channels; ch++) {
+                    circlebuf_pop_front(&transcoder->audio_buf[ch], nullptr, buffer_size);
+                }
+                buffer_size = 0;
+                transcoder->audio_time += audio_frames_to_ns(rate, buffer_size / sizeof(float));
+            } else {
+                for (size_t ch = 0; ch < channels; ch++) {
+                    circlebuf_pop_front(&transcoder->audio_buf[ch], nullptr, trunc_size);
+                }
+                buffer_size -= trunc_size;
+                transcoder->audio_time = ts.start;
             }
-            start_frame = 0;
-        } else {
-            start_frame = ns_to_audio_frames(rate, transcoder->audio_time - ts.start);
         }
-        size_t audio_size = (AUDIO_OUTPUT_FRAMES - start_frame) * sizeof(float);
-        for (size_t ch = 0; ch < channels; ch++) {
-            circlebuf_pop_front(&transcoder->audio_buf[ch], mixes[0].data[ch] + start_frame, audio_size);
+        if (transcoder->audio_time >= ts.start) {
+            size_t start_frame = ns_to_audio_frames(rate, transcoder->audio_time - ts.start);
+            size_t audio_size = (AUDIO_OUTPUT_FRAMES - start_frame) * sizeof(float);
+            if (buffer_size >= audio_size) {
+                for (size_t ch = 0; ch < channels; ch++) {
+                    circlebuf_pop_front(&transcoder->audio_buf[ch], mixes[0].data[ch] + start_frame, audio_size);
+                }
+                transcoder->audio_time = ts.end;
+                result = true;
+            }
         }
-        result = true;
-        transcoder->audio_time = ts.end;
+        if (!result && (end_ts_in - ts.start >= MAX_AUDIO_TIMESTAMP_BUFFER)) {
+            // audio lagged too much, reset audio and send mute
+            blog(LOG_INFO, "[%s] audio timestamp buffer exceed limit: %llu, audio time: %llu, ts.end: %llu",
+                 transcoder->source->id.c_str(), end_ts_in - ts.start, transcoder->audio_time, ts.end);
+            transcoder->reset_audio();
+            result = true;
+        }
     }
 
-    *out_ts = ts.start;
-    if (result || transcoder->audio_timestamp_buf.size > MAX_AUDIO_TIMESTAMP_BUFFER_SIZE) {
+    if (result) {
         circlebuf_pop_front(&transcoder->audio_timestamp_buf, nullptr, sizeof(ts));
     }
 
     transcoder->audio_buf_mutex.unlock();
+
+    *out_ts = ts.start;
     return result;
 }
 
-void SourceTranscoder::create_audio_resampler(obs_source_audio *a) {
-    const struct audio_output_info *aoi = audio_output_get_info(this->audio);
-    struct resample_info input_info = {};
-    struct resample_info output_info = {};
-
-    input_info.format = a->format;
-    input_info.speakers = a->speakers;
-    input_info.samples_per_sec = a->samples_per_sec;
-
-    output_info.format = aoi->format;
-    output_info.samples_per_sec = aoi->samples_per_sec;
-    output_info.speakers = aoi->speakers;
-
-    audio_resampler = audio_resampler_create(&output_info, &input_info);
+void SourceTranscoder::reset_audio() {
+    size_t channels = audio_output_get_channels(audio);
+    for (size_t ch = 0; ch < channels; ch++) {
+        circlebuf_pop_front(&audio_buf[ch], nullptr, audio_buf[ch].size);
+    }
+    audio_time = 0;
+    last_audio_time = 0;
 }
