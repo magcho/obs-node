@@ -64,7 +64,8 @@ jobs:
             libxcb-xfixes0-dev \
             libx11-xcb-dev \
             libxcb1-dev \
-            x11vnc
+            x11vnc \
+            libsrt-dev
         shell: bash
 
       - name: Build
