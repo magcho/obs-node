@@ -84,7 +84,9 @@ void Source::start() {
         obs_data_set_bool(obs_data, "close_when_inactive", false);  // make source always read
         obs_data_set_bool(obs_data, "restart_on_activate", false);  // make source always read
         obs_data_set_bool(obs_data, "clear_on_media_end", false);
+        obs_data_set_int(obs_data, "buffering_mb",settings->bufferSize);
         obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
+        obs_source_set_async_unbuffered(obs_source, !settings->enableBuffer);
     }
 
     obs_data_release(obs_data);

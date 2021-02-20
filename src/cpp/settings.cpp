@@ -100,6 +100,8 @@ SourceSettings::SourceSettings(const Napi::Object &settings) :
     url = getNapiString(settings, "url");
     startOnActive = getNapiBooleanOrDefault(settings, "startOnActive", false);
     hardwareDecoder = getNapiBoolean(settings, "hardwareDecoder");
+    enableBuffer = getNapiBooleanOrDefault(settings, "enableBuffer", true);
+    bufferSize = getNapiIntOrDefault(settings, "bufferSize", 2);
     if (!settings.Get("output").IsUndefined()) {
         auto outputSettings = settings.Get("output").As<Napi::Object>();
         output = new OutputSettings(outputSettings);
