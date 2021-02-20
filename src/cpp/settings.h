@@ -56,5 +56,7 @@ public:
     std::string url;
     bool startOnActive;
     bool hardwareDecoder;
+    bool enableBuffer;
+    int bufferSize;
     OutputSettings *output;
 };

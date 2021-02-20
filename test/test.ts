@@ -42,7 +42,7 @@ const dsks = [
     {
         id: "dsk1",
         position: "top-left",
-        url: "https://httpbin.org/image/png",
+        url: "",
         left: 100,
         top: 100,
         width: 256,
@@ -57,9 +57,9 @@ const sources: Source[] = [
         settings: {
             type: 'MediaSource',
             isFile: false,
-            url: 'rtmp://host.docker.internal/live/source1',
+            url:'srt://192.168.1.202:8080?streamid=live.sls.com/live/888',
             hardwareDecoder: false,
-            startOnActive: false,
+            startOnActive: true,
         }
     },
     {
@@ -67,12 +67,12 @@ const sources: Source[] = [
         sourceId: 'source2',
         settings: {
             type: 'MediaSource',
-            isFile: true,
-            url: 'test.mp4',
+            isFile: false,
+            url: 'srt://192.168.1.202:8080?streamid=live.sls.com/live/888',
             hardwareDecoder: false,
             startOnActive: true,
-            output: {
-                server: 'rtmp://host.docker.internal/preview',
+            /*output: {
+                server: 'rtmp://localhost/preview',
                 key: 'source2',
                 hardwareEnable: false,
                 width: 640,
@@ -84,7 +84,7 @@ const sources: Source[] = [
                 tune: 'zerolatency',
                 videoBitrateKbps: 1000,
                 audioBitrateKbps: 64,
-            }
+            }*/
         }
     }
 ];
