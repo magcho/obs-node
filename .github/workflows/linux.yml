@@ -1,76 +1,94 @@
 name: obs-node
 
 on:
-  push:
-    tags:
-      - '*'
+  workflow_dispatch:
 
 env:
   GITHUB_USER: Mengli619
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  # Build with srt support: https://gist.github.com/Kusmeroglu/ef81c4f96369f890fcdc0616652430ad
   build-linux:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Install dependencies
+      - name: Build srt
+        shell: bash
         run: |
-          sudo apt-get update && sudo apt-get install -y \
-            build-essential \
-            checkinstall \
-            cmake \
-            gdb \
-            git \
-            nodejs \
-            npm \
-            libmbedtls-dev \
-            libasound2-dev \
-            libavcodec-dev \
-            libavdevice-dev \
-            libavfilter-dev \
-            libavformat-dev \
-            libavutil-dev \
-            libcurl4-openssl-dev \
-            libfdk-aac-dev \
-            libfontconfig-dev \
-            libfreetype6-dev \
-            libgl1-mesa-dev \
-            libjack-jackd2-dev \
-            libjansson-dev \
-            libluajit-5.1-dev \
-            libpulse-dev \
-            libqt5x11extras5-dev \
-            libspeexdsp-dev \
-            libswresample-dev \
-            libswscale-dev \
-            libudev-dev \
-            libv4l-dev \
-            libvlc-dev \
-            libx11-dev \
-            libx264-dev \
-            libxcb-shm0-dev \
-            libxcb-xinerama0-dev \
-            libxcomposite-dev \
-            libxinerama-dev \
-            pkg-config \
-            python3-dev \
-            qtbase5-dev \
-            libqt5svg5-dev \
-            swig \
-            libxcb-randr0-dev \
-            libxcb-xfixes0-dev \
-            libx11-xcb-dev \
-            libxcb1-dev \
-            x11vnc \
-            libsrt-dev
-        shell: bash
+          sudo apt-get install libssl-dev git cmake
+          mkdir ~/ffmpeg_sources
+          cd ~/ffmpeg_sources
+          git clone --depth 1 https://github.com/Haivision/srt.git
+          mkdir srt/build
+          cd ~/ffmpeg_sources/srt/build && \
+          cmake -DENABLE_C_DEPS=ON -DENABLE_SHARED=ON -DENABLE_STATIC=OFF -fPIC .. && \
+          make && \
+          make install
 
-      - name: Build
-        run: bash scripts/build.sh all
+      - name: Install build dependencies
         shell: bash
+        run: |
+          sudo apt-get update -qq && sudo apt-get -y install \
+            autoconf \
+            automake \
+            build-essential \
+            cmake \
+            git-core \
+            libass-dev \
+            libfreetype6-dev \
+            libgnutls28-dev \
+            libsdl2-dev \
+            libtool \
+            libva-dev \
+            libvdpau-dev \
+            libvorbis-dev \
+            libxcb1-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            pkg-config \
+            texinfo \
+            wget \
+            yasm \
+            zlib1g-dev \
+            libx264-dev \
+            libx265-dev \
+            libnuma-dev \
+            libfdk-aac-dev \
+            libmp3lame-dev
+
+      - name: Build ffmpeg
+        shell: bash
+        run: |
+          cd ~/ffmpeg_sources && \
+          wget -O ffmpeg-snapshot.tar.bz2 https://ffmpeg.org/releases/ffmpeg-snapshot.tar.bz2 && \
+          tar xjvf ffmpeg-snapshot.tar.bz2
+          cd ~/ffmpeg_sources/ffmpeg && \
+          PATH="$HOME/bin:$PATH" PKG_CONFIG_PATH="$HOME/ffmpeg_build/lib/pkgconfig" ./configure --prefix=/usr \
+                      --enable-gpl         \
+                      --enable-version3    \
+                      --enable-nonfree     \
+                      --disable-static     \
+                      --enable-shared      \
+                      --disable-debug      \
+                      --enable-avresample  \
+                      --enable-libfdk-aac  \
+                      --enable-libfreetype \
+                      --enable-libx264     \
+                      --enable-libx265     \
+                      --enable-protocol=libsrt \
+                      --enable-libsrt && \
+          make && \
+          make install && \
+          hash -r
+          sudo checkinstall -y --deldoc=yes
+          sudo ldconfig
+
+      - name: Build obs-node
+        shell: bash
+        run: bash scripts/build.sh all
 
       - name: Upload
         run: npm run upload
