@@ -66,6 +66,8 @@ declare namespace obs {
         url: string;
         hardwareDecoder: boolean;
         startOnActive: boolean;
+        enableBuffer: boolean;
+        bufferSize: number;
         output?: OutputSettings;
     }
 
