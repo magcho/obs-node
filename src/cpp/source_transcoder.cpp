@@ -3,9 +3,11 @@
 #include <media-io/video-frame.h>
 #include <util/platform.h>
 
+#define VIDEO_RESET_THRESHOLD 1000000000
+#define VIDEO_SMOOTH_THRESHOLD 2000000
 #define AUDIO_RESET_THRESHOLD 2000000000
 #define AUDIO_SMOOTH_THRESHOLD 70000000
-#define MAX_AUDIO_TIMESTAMP_BUFFER 1000000000
+#define AUDIO_MAX_TIMESTAMP_BUFFER 1000000000
 
 struct ts_info {
     uint64_t start;
@@ -20,11 +22,13 @@ SourceTranscoder::SourceTranscoder() :
         source(nullptr),
         output(nullptr),
         video(nullptr),
-        video_stagesurface(nullptr),
-        video_texrender(nullptr),
-        last_video_timestamp(0),
-        last_video_lagged_frames(0),
-        first_frame_outputed(false),
+        frame_buf(),
+        frame_buf_mutex(),
+        video_scaler(nullptr),
+        last_video_time(0),
+        last_frame_ts(0),
+        video_stop(false),
+        video_thread(),
         audio(nullptr),
         audio_buf(),
         audio_buf_mutex(),
@@ -54,12 +58,7 @@ void SourceTranscoder::start(Source *s) {
     voi.cache_size = 16;
     video_output_open(&video, &voi);
 
-    obs_enter_graphics();
-    video_texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
-    video_stagesurface = gs_stagesurface_create(voi.width, voi.height, GS_BGRA);
-    obs_leave_graphics();
-
-    obs_add_main_render_callback(source_video_output_callback, this);
+    video_thread = std::thread(&SourceTranscoder::video_output_callback, this);
 
     // audio output
     for (auto &buf : audio_buf) {
@@ -83,121 +82,120 @@ void SourceTranscoder::start(Source *s) {
     audio_output_open(&audio, &aoi);
 
     output->start(video, audio);
+
+    signal_handler_t *handler = obs_source_get_signal_handler(source->obs_source);
+    signal_handler_connect(handler, "media_get_frame", source_media_get_frame_callback, this);
 }
 
 void SourceTranscoder::stop() {
+    signal_handler_t *handler = obs_source_get_signal_handler(source->obs_source);
+    signal_handler_disconnect(handler, "media_get_frame", source_media_get_frame_callback, this);
+
     output->stop();
     delete output;
     output = nullptr;
 
-    // video stop
-    obs_remove_main_render_callback(source_video_output_callback, this);
-
-    obs_enter_graphics();
-    gs_stagesurface_destroy(video_stagesurface);
-    gs_texrender_destroy(video_texrender);
-    obs_leave_graphics();
+    video_stop = true;
+    video_thread.join();
+    video_stop = false;
 
     video_output_stop(video);
     video_output_close(video);
 
-    last_video_timestamp = 0;
-    last_video_lagged_frames = 0;
-    first_frame_outputed = false;
+    if (video_scaler) {
+        video_scaler_destroy(video_scaler);
+        video_scaler = nullptr;
+    }
+
+    reset_video();
+
+    last_video_time = 0;
+    last_frame_ts = 0;
 
     // audio stop
+    obs_source_remove_audio_capture_callback(source->obs_source, audio_capture_callback, this);
+
     audio_output_close(audio);
 
-    for (auto &buf : audio_buf) {
-        circlebuf_free(&buf);
-    }
+    reset_audio();
 
     audio_time = 0;
     last_audio_time = 0;
     timing_adjust = 0;
 }
 
-void SourceTranscoder::source_video_output_callback(void *param, uint32_t cx, uint32_t cy) {
-    UNUSED_PARAMETER(cx);
-    UNUSED_PARAMETER(cy);
-
+void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *data) {
     auto transcoder = (SourceTranscoder *) param;
-    auto obs_source = transcoder->source->obs_source;
-    if (!obs_source) {
-        return;
+    auto *frame = (obs_source_frame *) calldata_ptr(data, "frame");
+
+    // create video scaler after first frame is received
+    if (!transcoder->video_scaler) {
+        transcoder->create_video_scaler(frame);
     }
 
-    int source_width = (int) obs_source_get_width(obs_source);
-    int source_height = (int) obs_source_get_height(obs_source);
-    if (source_width == 0 || source_height == 0) {
-        return;
+    obs_source_frame *new_frame = obs_source_frame_create(frame->format, frame->width, frame->height);
+    obs_source_frame_copy(new_frame, frame);
+
+    transcoder->frame_buf_mutex.lock();
+
+    // clear frame buffer, only keep latest frame
+    if (transcoder->last_frame_ts &&
+        uint64_diff(transcoder->last_frame_ts, new_frame->timestamp) > VIDEO_RESET_THRESHOLD) {
+        blog(LOG_INFO, "[%s] video timestamp reset: %llu -> %llu",
+             transcoder->source->id.c_str(), transcoder->last_frame_ts, new_frame->timestamp);
+        transcoder->reset_video();
     }
 
-    int output_width = transcoder->source->settings->output->width;
-    int output_height = transcoder->source->settings->output->height;
-    float scaleX = (float) output_width / (float) source_width;
-    float scaleY = (float) output_height / (float) source_height;
+    circlebuf_push_back(&transcoder->frame_buf, &new_frame, sizeof(void *));
+    transcoder->last_frame_ts = new_frame->timestamp;
 
-    uint64_t video_time = obs_get_video_frame_time();
-    uint64_t frame_timestamp = obs_source_get_frame_timestamp(transcoder->source->obs_source);
+    transcoder->frame_buf_mutex.unlock();
+}
 
-    if (frame_timestamp != transcoder->last_video_timestamp) {
-        transcoder->timing_mutex.lock();
-        transcoder->timing_adjust = video_time - frame_timestamp;
-        transcoder->timing_mutex.unlock();
-        transcoder->last_video_timestamp = frame_timestamp;
-    }
+void SourceTranscoder::video_output_callback(void *param) {
+    auto *transcoder = (SourceTranscoder *) param;
+    const struct video_output_info *voi = video_output_get_info(transcoder->video);
+    uint64_t interval = util_mul_div64(1000000000UL, voi->fps_den, voi->fps_num);
+    transcoder->last_video_time = os_gettime_ns();
 
-    auto texrender = transcoder->video_texrender;
-    auto stagesurface = transcoder->video_stagesurface;
-    auto video = transcoder->video;
-
-    gs_texrender_reset(texrender);
-
-    if (gs_texrender_begin(texrender, output_width, output_height)) {
-        vec4 background = {};
-        vec4_zero(&background);
-
-        gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
-        gs_ortho(0.0f, (float) output_width, 0.0f, (float) output_height, -100.0f, 100.0f);
-
-        gs_blend_state_push();
-        gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
-
-        gs_matrix_scale3f(scaleX, scaleY, 1);
-        obs_source_video_render(obs_source);
-
-        gs_blend_state_pop();
-        gs_texrender_end(texrender);
-
-        uint32_t lagged_frames = obs_get_lagged_frames();
-        uint32_t frame_count = transcoder->first_frame_outputed ? lagged_frames - transcoder->last_video_lagged_frames + 1 : 1;
-        transcoder->last_video_lagged_frames = lagged_frames;
-
-        struct video_frame output_frame = {};
-        if (video_output_lock_frame(video, &output_frame, frame_count, video_time)) {
-            gs_stage_texture(stagesurface, gs_texrender_get_texture(texrender));
-            uint8_t *video_data = nullptr;
-            uint32_t video_linesize;
-            if (gs_stagesurface_map(stagesurface, &video_data, &video_linesize)) {
-                uint32_t linesize = output_frame.linesize[0];
-                for (uint32_t i = 0; i < output_height; i++) {
-                    uint32_t dst_offset = linesize * i;
-                    uint32_t src_offset = video_linesize * i;
-                    memcpy(output_frame.data[0] +
-                           dst_offset,
-                           video_data + src_offset,
-                           linesize);
-                }
-                gs_stagesurface_unmap(stagesurface);
-            }
-            transcoder->first_frame_outputed = true;
-            video_output_unlock_frame(video);
+    while (!transcoder->video_stop) {
+        uint64_t video_time = transcoder->last_video_time + interval;
+        uint32_t count;
+        if (os_sleepto_ns(video_time)) {
+            count = 1;
+        } else {
+            count = (int) ((os_gettime_ns() - transcoder->last_video_time) / interval);
+            video_time = transcoder->last_video_time + interval * count;
         }
+
+        transcoder->frame_buf_mutex.lock();
+        auto frame = transcoder->get_closest_frame(video_time);
+        if (frame) {
+            transcoder->timing_mutex.lock();
+            transcoder->timing_adjust = video_time - frame->timestamp;
+            transcoder->timing_mutex.unlock();
+            struct video_frame output_frame = {};
+            if (count > 1) {
+                blog(LOG_INFO, "[%s] video lagged: %d", transcoder->source->id.c_str(), count);
+            }
+            if (video_output_lock_frame(transcoder->video, &output_frame, count, video_time)) {
+                video_scaler_scale(
+                        transcoder->video_scaler,
+                        output_frame.data,
+                        output_frame.linesize,
+                        frame->data,
+                        frame->linesize
+                );
+                video_output_unlock_frame(transcoder->video);
+            }
+        }
+        transcoder->last_video_time = video_time;
+        transcoder->frame_buf_mutex.unlock();
     }
 }
 
-void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source, const struct audio_data *audio_data, bool muted) {
+void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source, const struct audio_data *audio_data,
+                                              bool muted) {
     UNUSED_PARAMETER(source);
     UNUSED_PARAMETER(muted);
 
@@ -217,19 +215,20 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
     transcoder->audio_buf_mutex.lock();
 
     uint64_t current_audio_time = audio_data->timestamp + timing_adjust;
-    uint64_t diff = uint64_diff(transcoder->last_audio_time, current_audio_time);
     size_t audio_size = audio_data->frames * sizeof(float);
 
+    // if audio time output range, reset audio
     if (!transcoder->audio_time || current_audio_time < transcoder->audio_time ||
         current_audio_time - transcoder->audio_time > AUDIO_RESET_THRESHOLD) {
-        blog(LOG_INFO, "[%s] reset audio buffer, audio timestamp: %llu, audio time: %llu ms, current audio time: %llu ms",
-             transcoder->source->id.c_str(), audio_data->timestamp, transcoder->audio_time, current_audio_time);
-        for (size_t i = 0; i < channels; i++) {
-            circlebuf_pop_front(&transcoder->audio_buf[i], nullptr, transcoder->audio_buf[i].size);
-        }
+        blog(LOG_INFO, "[%s] audio timestamp reset %llu -> %llu",
+             transcoder->source->id.c_str(), current_audio_time, transcoder->audio_time);
+        transcoder->reset_audio();
         transcoder->audio_time = current_audio_time;
         transcoder->last_audio_time = current_audio_time;
-    } else if (diff > AUDIO_SMOOTH_THRESHOLD) {
+    }
+
+    uint64_t diff = uint64_diff(transcoder->last_audio_time, current_audio_time);
+    if (diff > AUDIO_SMOOTH_THRESHOLD) {
         blog(LOG_INFO, "[%s] audio buffer placement: %llu", transcoder->source->id.c_str(), diff);
         size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - transcoder->audio_time) * sizeof(float);
         for (size_t i = 0; i < channels; i++) {
@@ -255,7 +254,6 @@ bool SourceTranscoder::audio_output_callback(
         uint64_t *out_ts,
         uint32_t mixers,
         struct audio_output_data *mixes) {
-
     UNUSED_PARAMETER(mixers);
 
     auto transcoder = (SourceTranscoder *) param;
@@ -310,7 +308,7 @@ bool SourceTranscoder::audio_output_callback(
                 result = true;
             }
         }
-        if (!result && (end_ts_in - ts.start >= MAX_AUDIO_TIMESTAMP_BUFFER)) {
+        if (!result && (end_ts_in - ts.start >= AUDIO_MAX_TIMESTAMP_BUFFER)) {
             // audio lagged too much, reset audio and send mute
             blog(LOG_INFO, "[%s] audio timestamp buffer exceed limit: %llu, audio time: %llu, ts.end: %llu",
                  transcoder->source->id.c_str(), end_ts_in - ts.start, transcoder->audio_time, ts.end);
@@ -327,6 +325,68 @@ bool SourceTranscoder::audio_output_callback(
 
     *out_ts = ts.start;
     return result;
+}
+
+void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
+    const struct video_output_info *voi = video_output_get_info(video);
+    struct video_scale_info src = {
+            .format = frame->format,
+            .width = frame->width,
+            .height = frame->height,
+            .range = frame->full_range ? VIDEO_RANGE_FULL : VIDEO_RANGE_DEFAULT,
+            .colorspace = VIDEO_CS_DEFAULT
+    };
+    struct video_scale_info dest = {
+            .format = voi->format,
+            .width = voi->width,
+            .height = voi->height,
+            .range = VIDEO_RANGE_DEFAULT,
+            .colorspace = VIDEO_CS_DEFAULT
+    };
+
+    int ret = video_scaler_create(&video_scaler, &dest, &src, VIDEO_SCALE_FAST_BILINEAR);
+    if (ret != VIDEO_SCALER_SUCCESS) {
+        throw std::runtime_error("Failed to create video scaler.");
+    }
+}
+
+obs_source_frame *SourceTranscoder::get_closest_frame(uint64_t video_time) {
+    if (!frame_buf.size) {
+        return nullptr;
+    }
+
+    obs_source_frame *frame;
+    circlebuf_peek_front(&frame_buf, &frame, sizeof(void *));
+
+    if (!last_video_time) {
+        last_video_time = video_time;
+    }
+
+    if (!last_frame_ts) {
+        last_frame_ts = frame->timestamp;
+    }
+
+    uint64_t sys_offset = video_time - last_video_time;
+    uint64_t frame_ts = sys_offset + last_frame_ts;
+    while (frame_ts > frame->timestamp && frame_buf.size > sizeof(void *)) {
+        if (frame_ts - frame->timestamp < VIDEO_SMOOTH_THRESHOLD) {
+            break;
+        }
+        circlebuf_pop_front(&frame_buf, &frame, sizeof(void *));
+        obs_source_frame_destroy(frame);
+        circlebuf_peek_front(&frame_buf, &frame, sizeof(void *));
+    }
+    last_frame_ts = frame_ts;
+    return frame;
+}
+
+void SourceTranscoder::reset_video() {
+    while (frame_buf.size > 0) {
+        obs_source_frame *frame = nullptr;
+        circlebuf_pop_front(&frame_buf, &frame, sizeof(void *));
+        obs_source_frame_destroy(frame);
+    }
+    last_frame_ts = 0;
 }
 
 void SourceTranscoder::reset_audio() {

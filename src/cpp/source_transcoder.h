@@ -14,53 +14,62 @@ class Source;
 class SourceTranscoder {
 
 public:
-    SourceTranscoder();
+	SourceTranscoder();
 
-    void start(Source *source);
-    void stop();
+	void start(Source *source);
+
+	void stop();
 
 private:
-    static void source_video_output_callback(
-            void *param,
-            uint32_t cx,
-            uint32_t cy
-    );
+	static void source_media_get_frame_callback(
+			void *param,
+			calldata_t *data);
 
-    static bool audio_output_callback(
-            void *param,
-            uint64_t start_ts_in,
-            uint64_t end_ts_in,
-            uint64_t *out_ts,
-            uint32_t mixers,
-            struct audio_output_data *mixes
-    );
+	static void video_output_callback(void *param);
 
-    static void audio_capture_callback(
-            void *param,
-            obs_source_t *source,
-            const struct audio_data *audio_data,
-            bool muted
-    );
+	static bool audio_output_callback(
+			void *param,
+			uint64_t start_ts_in,
+			uint64_t end_ts_in,
+			uint64_t *out_ts,
+			uint32_t mixers,
+			struct audio_output_data *mixes
+	);
 
-    void reset_audio();
+	static void audio_capture_callback(
+			void *param,
+			obs_source_t *source,
+			const struct audio_data *audio_data,
+			bool muted
+	);
 
-    Source *source;
-    Output *output;
+	void create_video_scaler(obs_source_frame *frame);
 
-    video_t *video;
-    gs_texrender_t *video_texrender;
-    gs_stagesurf_t *video_stagesurface;
-    uint64_t last_video_timestamp;
-    uint32_t last_video_lagged_frames;
-    bool first_frame_outputed;
+	obs_source_frame *get_closest_frame(uint64_t video_time);
 
-    audio_t *audio;
-    circlebuf audio_buf[MAX_AUDIO_CHANNELS];
-    std::mutex audio_buf_mutex;
-    circlebuf audio_timestamp_buf;
-    uint64_t audio_time;
-    uint64_t last_audio_time;
+	void reset_video();
 
-    int64_t timing_adjust;
-    std::mutex timing_mutex;
+	void reset_audio();
+
+	Source *source;
+	Output *output;
+
+	video_t *video;
+	circlebuf frame_buf;
+	std::mutex frame_buf_mutex;
+	video_scaler_t *video_scaler;
+	uint64_t last_video_time;
+	uint64_t last_frame_ts;
+	std::thread video_thread;
+	volatile bool video_stop;
+
+	audio_t *audio;
+	circlebuf audio_buf[MAX_AUDIO_CHANNELS];
+	std::mutex audio_buf_mutex;
+	circlebuf audio_timestamp_buf;
+	uint64_t audio_time;
+	uint64_t last_audio_time;
+
+	int64_t timing_adjust;
+	std::mutex timing_mutex;
 };
