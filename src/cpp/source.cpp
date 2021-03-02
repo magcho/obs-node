@@ -1,5 +1,23 @@
 #include "source.h"
+
+#include <utility>
 #include "callback.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+extern "C" {
+#include "stb/stb_image_write.h"
+}
+
+
+struct ScreenshotContext {
+    Source *source;
+    std::function<void(uint8_t*, int)> callback;
+};
+
+static void write_png_callback(void *context, void *data, int size) {
+    auto c = (ScreenshotContext *) context;
+    c->callback((uint8_t*) data, (size_t) size);
+}
 
 SourceType Source::getSourceType(const std::string &sourceType) {
     if (sourceType == "Image") {
@@ -37,6 +55,44 @@ void Source::volmeter_callback(void *param, const float *magnitude, const float 
         }
         callback(source->sceneId, source->id, channels, vecMagnitude, vecPeak, vecInputPeak);
     }
+}
+
+void Source::screenshot_callback(void *param) {
+    auto p = (ScreenshotContext *)param;
+    int width = (int) obs_source_get_width(p->source->obs_source);
+    int height = (int) obs_source_get_height(p->source->obs_source);
+    if (width == 0 || height == 0) {
+        return;
+    }
+
+    obs_enter_graphics();
+    gs_texrender_t *texrender = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
+    gs_stagesurf_t *stagesurf = gs_stagesurface_create(width, height, GS_RGBA);
+    try {
+        if (gs_texrender_begin(texrender, width, height)) {
+            vec4 background = {};
+            vec4_zero(&background);
+            gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
+            gs_ortho(0.0f, (float) width, 0.0f, (float) height, -100.0f, 100.0f);
+            gs_blend_state_push();
+            gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+            obs_source_video_render(p->source->obs_source);
+            gs_blend_state_pop();
+            gs_texrender_end(texrender);
+            gs_stage_texture(stagesurf, gs_texrender_get_texture(texrender));
+            uint8_t *video_data = nullptr;
+            uint32_t video_linesize = 0;
+            if (gs_stagesurface_map(stagesurf, &video_data, &video_linesize)) {
+                stbi_write_png_to_func(write_png_callback, p, width, height, 4, video_data, video_linesize);
+                gs_stagesurface_unmap(stagesurf);
+            }
+        }
+    } catch(...) {
+        blog(LOG_ERROR, "Screenshot error");
+    }
+    gs_texrender_destroy(texrender);
+    gs_stagesurface_destroy(stagesurf);
+    obs_leave_graphics();
 }
 
 void Source::source_activate_callback(void *param, calldata_t *data) {
@@ -206,6 +262,14 @@ void Source::setVolume(float volume) {
 
 float Source::getVolume() {
     return obs_fader ? obs_fader_get_db(obs_fader) : 0;
+}
+
+void Source::screenshot(std::function<void(uint8_t*, int)> callback) {
+    auto p = new ScreenshotContext {
+      .source = this,
+      .callback = std::move(callback),
+    };
+    obs_queue_task(OBS_TASK_GRAPHICS, screenshot_callback, p, false);
 }
 
 void Source::setAudioLock(bool audioLock) {

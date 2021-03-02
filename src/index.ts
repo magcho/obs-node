@@ -128,6 +128,7 @@ declare namespace obs {
         addVolmeterCallback(callback: VolmeterCallback): void;
         getAudio(): Audio;
         updateAudio(request: UpdateAudioRequest): void;
+        screenshot(sceneId: string, sourceId: string): Promise<Buffer>;
     }
 }
 

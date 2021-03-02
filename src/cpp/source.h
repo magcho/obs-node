@@ -53,12 +53,16 @@ public:
 
     bool getAudioMonitor();
 
+    void screenshot(std::function<void(uint8_t*, int)> callback);
+
 private:
     static void volmeter_callback(
             void *param,
             const float *magnitude,
             const float *peak,
             const float *input_peak);
+
+    static void screenshot_callback(void *param);
 
     static void source_activate_callback(void *param, calldata_t *data);
     static void source_deactivate_callback(void *param, calldata_t *data);

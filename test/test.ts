@@ -1,6 +1,7 @@
 import * as obs from '../src';
 import * as readline from 'readline';
 import {SourceSettings} from "../src";
+import * as fs from "fs";
 
 interface Source {
     sceneId: string;
@@ -57,9 +58,9 @@ const sources: Source[] = [
         settings: {
             type: 'MediaSource',
             isFile: false,
-            url:'srt://192.168.1.202:8080?streamid=live.sls.com/live/888',
+            url: 'rtmp://host.docker.internal/live/source1',
             hardwareDecoder: false,
-            startOnActive: true,
+            startOnActive: false,
         }
     },
     {
@@ -67,12 +68,12 @@ const sources: Source[] = [
         sourceId: 'source2',
         settings: {
             type: 'MediaSource',
-            isFile: false,
-            url: 'srt://192.168.1.202:8080?streamid=live.sls.com/live/888',
+            isFile: true,
+            url: 'test.mp4',
             hardwareDecoder: false,
-            startOnActive: true,
-            /*output: {
-                server: 'rtmp://localhost/preview',
+            startOnActive: false,
+            output: {
+                server: 'rtmp://host.docker.internal/preview',
                 key: 'source2',
                 hardwareEnable: false,
                 width: 640,
@@ -84,7 +85,7 @@ const sources: Source[] = [
                 tune: 'zerolatency',
                 videoBitrateKbps: 1000,
                 audioBitrateKbps: 64,
-            }*/
+            }
         }
     }
 ];
@@ -119,6 +120,13 @@ const question = (callback: (sceneId: string) => void) => {
     });
 };
 
-question(sceneId => {
-    obs.switchToScene(sceneId, 'cut_transition', 1000);
+question(async sceneId => {
+    if (sceneId.startsWith('screenshot '))  {
+        sceneId = sceneId.replace('screenshot ', '');
+        const source = sources.find(s => s.sceneId === sceneId);
+        const buffer = await obs.screenshot(source.sceneId, source.sourceId);
+        fs.writeFileSync('screenshot.png', buffer);
+    } else {
+        obs.switchToScene(sceneId, 'cut_transition', 1000);
+    }
 });

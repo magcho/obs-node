@@ -20,6 +20,7 @@ endif()
 
 # Build
 SET(OBS_NODE_SOURCES
+    src/cpp/stb/stb_image_write.h
     src/cpp/main.cpp
     src/cpp/utils.h
     src/cpp/settings.h

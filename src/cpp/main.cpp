@@ -1,6 +1,7 @@
 #include "studio.h"
 #include "utils.h"
 #include "callback.h"
+#include <memory>
 #include <napi.h>
 
 #ifdef __linux__
@@ -12,7 +13,7 @@ QApplication *qApplication;
 
 Studio *studio = nullptr;
 Settings *settings = nullptr;
-Napi::ThreadSafeFunction js_volmeter_thread;
+Napi::ThreadSafeFunction volmeter_thread = nullptr;
 
 struct VolmeterData {
     std::string sceneId;
@@ -169,7 +170,7 @@ Napi::Value moveDisplay(const Napi::CallbackInfo &info) {
 
 Napi::Value addVolmeterCallback(const Napi::CallbackInfo &info) {
     auto callback = info[0].As<Napi::Function>();
-    js_volmeter_thread = Napi::ThreadSafeFunction::New(
+    volmeter_thread = Napi::ThreadSafeFunction::New(
             info.Env(),
             callback,
             "VolmeterThread",
@@ -217,8 +218,8 @@ Napi::Value addVolmeterCallback(const Napi::CallbackInfo &info) {
             delete data;
         };
 
-        if (js_volmeter_thread) {
-            js_volmeter_thread.BlockingCall(data, callback);
+        if (volmeter_thread) {
+            volmeter_thread.BlockingCall(data, callback);
         }
     };
     TRY_METHOD(Callback::setVolmeterCallback(volmeterCallback))
@@ -248,6 +249,36 @@ Napi::Value updateAudio(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
 }
 
+Napi::Value screenshot(const Napi::CallbackInfo &info) {
+    std::string sceneId = info[0].As<Napi::String>();
+    std::string sourceId = info[1].As<Napi::String>();
+
+    Source *source;
+    TRY_METHOD(source = studio->findSource(sceneId, sourceId))
+
+    auto deferred = Napi::Promise::Deferred::New(info.Env());
+    auto tsfn = Napi::ThreadSafeFunction::New(
+            info.Env(),
+            Napi::Function::New(info.Env(), [](const Napi::CallbackInfo &info) {}),
+            "Screenshot threadSafe function",
+            0,
+            1);
+
+    source->screenshot([deferred, tsfn](const uint8_t *data, size_t size) {
+        std::mutex mtx;
+        std::unique_lock<std::mutex> lock(mtx);
+        std::condition_variable cv;
+        tsfn.BlockingCall([deferred, tsfn, &cv, data, size](Napi::Env env, Napi::Function jsCallback) mutable {
+            deferred.Resolve(Napi::Buffer<uint8_t>::Copy(env, data, size));
+            tsfn.Release();
+            cv.notify_one();
+        });
+        cv.wait(lock);
+    });
+
+    return deferred.Promise();
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "setObsPath"), Napi::Function::New(env, setObsPath));
     exports.Set(Napi::String::New(env, "startup"), Napi::Function::New(env, startup));
@@ -265,6 +296,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "addVolmeterCallback"), Napi::Function::New(env, addVolmeterCallback));
     exports.Set(Napi::String::New(env, "getAudio"), Napi::Function::New(env, getAudio));
     exports.Set(Napi::String::New(env, "updateAudio"), Napi::Function::New(env, updateAudio));
+    exports.Set(Napi::String::New(env, "screenshot"), Napi::Function::New(env, screenshot));
     return exports;
 }
 
