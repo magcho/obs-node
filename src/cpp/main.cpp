@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "callback.h"
 #include <memory>
+#include <condition_variable>
 #include <napi.h>
 
 #ifdef __linux__
@@ -268,9 +269,9 @@ Napi::Value screenshot(const Napi::CallbackInfo &info) {
         std::mutex mtx;
         std::unique_lock<std::mutex> lock(mtx);
         std::condition_variable cv;
-        tsfn.BlockingCall([deferred, tsfn, &cv, data, size](Napi::Env env, Napi::Function jsCallback) mutable {
+        tsfn.BlockingCall([deferred, tsfn, &cv, data, size](Napi::Env env, Napi::Function jsCallback) {
             deferred.Resolve(Napi::Buffer<uint8_t>::Copy(env, data, size));
-            tsfn.Release();
+            (const_cast<Napi::ThreadSafeFunction&>(tsfn)).Release();
             cv.notify_one();
         });
         cv.wait(lock);
