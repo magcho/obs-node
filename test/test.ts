@@ -1,7 +1,11 @@
 import * as obs from '../src';
 import * as readline from 'readline';
-import {SourceSettings} from "../src";
+import {CG, CGImage, CGText, Overlay, SourceSettings} from "../src";
 import * as fs from "fs";
+
+function as<T>(value: T): T {
+    return value;
+}
 
 interface Source {
     sceneId: string;
@@ -49,6 +53,37 @@ const dsks = [
         width: 256,
         height: 256,
     }
+];
+
+const overlays: Overlay[] = [
+    as<CG>({
+        id: 'cg1',
+        name: 'cg1',
+        type: 'cg',
+        baseWidth: 960,
+        baseHeight: 540,
+        items: [
+            as<CGImage>({
+                type: 'image',
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+                url: 'https://httpbin.org/image/png',
+            }),
+            as<CGText>({
+                type: 'text',
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+                content: 'MENG LI',
+                fontSize: 40,
+                fontFamily: 'SimSun',
+                colorABGR: 'ffff0000',
+            }),
+        ]
+    }),
 ];
 
 const sources: Source[] = [
@@ -101,6 +136,8 @@ dsks.forEach(dsk => {
    obs.addDSK(dsk.id, dsk.position as obs.Position, dsk.url, dsk.left, dsk.top, dsk.width, dsk.height);
 });
 
+overlays.forEach(overlay => obs.addOverlay(overlay));
+
 const readLine = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -126,6 +163,12 @@ question(async sceneId => {
         const source = sources.find(s => s.sceneId === sceneId);
         const buffer = await obs.screenshot(source.sceneId, source.sourceId);
         fs.writeFileSync('screenshot.png', buffer);
+    } else if (sceneId.startsWith('upOverlay ')) {
+        const overlayId = sceneId.replace('upOverlay ', '');
+        obs.upOverlay(overlayId);
+    } else if (sceneId.startsWith('downOverlay ')) {
+        const overlayId = sceneId.replace('downOverlay ', '');
+        obs.downOverlay(overlayId);
     } else {
         obs.switchToScene(sceneId, 'cut_transition', 1000);
     }

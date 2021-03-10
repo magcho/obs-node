@@ -163,7 +163,7 @@ void Source::start() {
     struct vec2 bounds = {};
     bounds.x = (float) ovi.base_width;
     bounds.y = (float) ovi.base_height;
-    uint32_t align = OBS_ALIGN_TOP + OBS_ALIGN_LEFT;
+    uint32_t align = OBS_ALIGN_CENTER;
     obs_sceneitem_set_bounds_type(obs_scene_item, OBS_BOUNDS_SCALE_INNER);
     obs_sceneitem_set_bounds(obs_scene_item, &bounds);
     obs_sceneitem_set_bounds_alignment(obs_scene_item, align);

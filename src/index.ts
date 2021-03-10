@@ -30,6 +30,12 @@ declare namespace obs {
 
     export type TransitionType = 'cut_transition' | 'fade_transition' | 'swipe_transition' | 'slide_transition';
 
+    export type OverlayType = 'cg';
+
+    export type OverlayStatus = 'up' | 'down';
+
+    export type CGItemType = 'image' | 'text';
+
     export interface Source {
         id: string;
         sceneId: string;
@@ -111,6 +117,38 @@ declare namespace obs {
         audioWithVideo?: boolean;
     }
 
+    export interface Overlay {
+        id: string;
+        name: string;
+        type: OverlayType;
+        status?: OverlayStatus;
+    }
+
+    export interface CG extends Overlay {
+        baseWidth: number;
+        baseHeight: number;
+        items: CGItem[];
+    }
+
+    export interface CGItem {
+        type: CGItemType;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }
+
+    export interface CGText extends CGItem {
+        content: string;
+        fontSize: number;
+        fontFamily: string;
+        colorABGR: string;
+    }
+
+    export interface CGImage extends CGItem {
+        url: string;
+    }
+
     export interface ObsNode {
         setObsPath(obsPath: string): void
         startup(settings: Settings): void;
@@ -129,6 +167,11 @@ declare namespace obs {
         getAudio(): Audio;
         updateAudio(request: UpdateAudioRequest): void;
         screenshot(sceneId: string, sourceId: string): Promise<Buffer>;
+        addOverlay(overlay: Overlay): void;
+        removeOverlay(overlayId: string): void;
+        upOverlay(overlayId: string): void;
+        downOverlay(overlayId: string): void;
+        getOverlays(): Overlay[];
     }
 }
 

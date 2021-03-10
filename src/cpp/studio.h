@@ -4,6 +4,7 @@
 #include "scene.h"
 #include "display.h"
 #include "output.h"
+#include "overlay.h"
 #include <map>
 #include <obs.h>
 
@@ -46,6 +47,16 @@ public:
 
     void setMasterVolume(float volume);
 
+    void addOverlay(Overlay *overlay);
+
+    void removeOverlay(const std::string &overlayId);
+
+    void upOverlay(const std::string &overlayId);
+
+    void downOverlay(const std::string &overlayId);
+
+    std::map<std::string, Overlay *> &getOverlays();
+
 private:
     static void loadModule(const std::string &binPath, const std::string &dataPath);
     Scene *findScene(std::string &sceneId);
@@ -56,6 +67,7 @@ private:
     std::map<std::string, obs_source_t *> transitions;
     std::map<std::string, Display *> displays;
     std::map<std::string, Dsk *> dsks;
+    std::map<std::string, Overlay *> overlays;
     Scene *currentScene;
     std::vector<Output *> outputs;
 };
