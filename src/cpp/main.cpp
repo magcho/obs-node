@@ -1,6 +1,7 @@
 #include "studio.h"
 #include "utils.h"
 #include "callback.h"
+#include "overlay.h"
 #include <memory>
 #include <condition_variable>
 #include <napi.h>
@@ -280,6 +281,40 @@ Napi::Value screenshot(const Napi::CallbackInfo &info) {
     return deferred.Promise();
 }
 
+Napi::Value addOverlay(const Napi::CallbackInfo &info) {
+    auto overlay = Overlay::create(info[0].As<Napi::Object>());
+    TRY_METHOD(studio->addOverlay(overlay))
+    return info.Env().Undefined();
+}
+
+Napi::Value removeOverlay(const Napi::CallbackInfo &info) {
+    std::string overlayId = info[0].As<Napi::String>();
+    TRY_METHOD(studio->removeOverlay(overlayId))
+    return info.Env().Undefined();
+}
+
+Napi::Value upOverlay(const Napi::CallbackInfo &info) {
+    std::string overlayId = info[0].As<Napi::String>();
+    TRY_METHOD(studio->upOverlay(overlayId))
+    return info.Env().Undefined();
+}
+
+Napi::Value downOverlay(const Napi::CallbackInfo &info) {
+    std::string overlayId = info[0].As<Napi::String>();
+    TRY_METHOD(studio->downOverlay(overlayId))
+    return info.Env().Undefined();
+}
+
+Napi::Value getOverlays(const Napi::CallbackInfo &info) {
+    auto overlays = studio->getOverlays();
+    Napi::Array result = Napi::Array::New(info.Env(), overlays.size());
+    int index = 0;
+    for (const auto& overlay : overlays) {
+        result.Set(index++, overlay.second->toNapiObject(info.Env()));
+    }
+    return result;
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "setObsPath"), Napi::Function::New(env, setObsPath));
     exports.Set(Napi::String::New(env, "startup"), Napi::Function::New(env, startup));
@@ -298,6 +333,11 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "getAudio"), Napi::Function::New(env, getAudio));
     exports.Set(Napi::String::New(env, "updateAudio"), Napi::Function::New(env, updateAudio));
     exports.Set(Napi::String::New(env, "screenshot"), Napi::Function::New(env, screenshot));
+    exports.Set(Napi::String::New(env, "addOverlay"), Napi::Function::New(env, addOverlay));
+    exports.Set(Napi::String::New(env, "removeOverlay"), Napi::Function::New(env, removeOverlay));
+    exports.Set(Napi::String::New(env, "upOverlay"), Napi::Function::New(env, upOverlay));
+    exports.Set(Napi::String::New(env, "downOverlay"), Napi::Function::New(env, downOverlay));
+    exports.Set(Napi::String::New(env, "getOverlays"), Napi::Function::New(env, getOverlays));
     return exports;
 }
 

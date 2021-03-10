@@ -31,8 +31,14 @@ Display::Display(void *parentHandle, int scaleFactor, std::string &sourceName) {
     }
 
     // obs source
-    obs_source = obs_get_source_by_name(sourceName.c_str());
-    obs_source_inc_showing(obs_source);
+    if (sourceName == "output") {
+        displayOutput = true;
+        obs_source = nullptr;
+    } else {
+        displayOutput = false;
+        obs_source = obs_get_source_by_name(sourceName.c_str());
+        obs_source_inc_showing(obs_source);
+    }
 
     // draw callback
     obs_display_add_draw_callback(obs_display, displayCallback, this);
@@ -65,32 +71,31 @@ void Display::displayCallback(void *displayPtr, uint32_t cx, uint32_t cy) {
     auto *dp = static_cast<Display *>(displayPtr);
 
     // Get proper source/base size.
-    uint32_t sourceW, sourceH;
-    if (dp->obs_source) {
-        sourceW = obs_source_get_width(dp->obs_source);
-        sourceH = obs_source_get_height(dp->obs_source);
-        if (sourceW == 0)
-            sourceW = 1;
-        if (sourceH == 0)
-            sourceH = 1;
-    } else {
+    uint32_t width = 0;
+    uint32_t height = 0;
+    if (dp->displayOutput) {
         obs_video_info ovi = {};
         obs_get_video_info(&ovi);
-
-        sourceW = ovi.base_width;
-        sourceH = ovi.base_height;
-        if (sourceW == 0)
-            sourceW = 1;
-        if (sourceH == 0)
-            sourceH = 1;
+        width = ovi.base_width;
+        height = ovi.base_height;
+    } else if (dp->obs_source) {
+        width = obs_source_get_width(dp->obs_source);
+        height = obs_source_get_height(dp->obs_source);
     }
+
+    if (width == 0)
+        width = 1;
+    if (height == 0)
+        height = 1;
 
     gs_projection_push();
 
-    gs_ortho(0.0f, (float)sourceW, 0.0f, (float)sourceH, -1, 1);
+    gs_ortho(0.0f, (float)width, 0.0f, (float)height, -1, 1);
 
     // Source Rendering
-    if (dp->obs_source) {
+    if (dp->displayOutput) {
+        obs_render_main_view();
+    } else if (dp->obs_source) {
         obs_source_video_render(dp->obs_source);
     }
 

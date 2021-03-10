@@ -41,7 +41,9 @@ SET(OBS_NODE_SOURCES
     src/cpp/output.h
     src/cpp/output.cpp
     src/cpp/source_transcoder.h
-    src/cpp/source_transcoder.cpp)
+    src/cpp/source_transcoder.cpp
+    src/cpp/overlay.h
+    src/cpp/overlay.cpp)
 
 if (WIN32)
     LIST(APPEND OBS_NODE_SOURCES

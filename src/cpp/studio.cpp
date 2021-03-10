@@ -9,8 +9,8 @@ std::string Studio::obsPath;
 Studio::Studio(Settings *settings) :
           settings(settings),
           currentScene(nullptr),
-          outputs() {
-
+          outputs(),
+          overlays() {
     for (auto o : settings->outputs) {
         outputs.push_back(new Output(o));
     }
@@ -83,6 +83,7 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "\\rtmp-services.dll", getObsPluginDataPath() + "\\rtmp-services");
         loadModule(getObsPluginPath() + "\\obs-x264.dll", getObsPluginDataPath() + "\\obs-x264");
         loadModule(getObsPluginPath() + "\\obs-outputs.dll", getObsPluginDataPath() + "\\obs-outputs");
+        loadModule(getObsPluginPath() + "\\text-freetype2.dll", getObsPluginDataPath() + "\\text-freetype2");
 #else
         loadModule(getObsPluginPath() + "/image-source.so", getObsPluginDataPath() + "/image-source");
         loadModule(getObsPluginPath() + "/obs-ffmpeg.so", getObsPluginDataPath() + "/obs-ffmpeg");
@@ -90,6 +91,7 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "/rtmp-services.so", getObsPluginDataPath() + "/rtmp-services");
         loadModule(getObsPluginPath() + "/obs-x264.so", getObsPluginDataPath() + "/obs-x264");
         loadModule(getObsPluginPath() + "/obs-outputs.so", getObsPluginDataPath() + "/obs-outputs");
+        loadModule(getObsPluginPath() + "/text-freetype2.so", getObsPluginDataPath() + "/text-freetype2");
 #endif
 
         obs_post_load_modules();
@@ -236,6 +238,50 @@ float Studio::getMasterVolume() {
 void Studio::setMasterVolume(float volume) {
     // input volume is dB
     obs_set_master_volume(obs_db_to_mul(volume));
+}
+
+void Studio::addOverlay(Overlay *overlay) {
+    if (overlays.find(overlay->id) != overlays.end()) {
+        throw std::logic_error("Overlay: " + overlay->id + " already existed");
+    }
+    overlays[overlay->id] = overlay;
+}
+
+void Studio::removeOverlay(const std::string &overlayId) {
+    if (overlays.find(overlayId) == overlays.end()) {
+        throw std::logic_error("Can't find overlay: " + overlayId);
+    }
+    auto overlay = overlays[overlayId];
+    if (overlay->index > -1) {
+        overlay->down();
+    }
+    delete overlay;
+    overlays.erase(overlayId);
+}
+
+void Studio::upOverlay(const std::string &overlayId) {
+    if (overlays.find(overlayId) == overlays.end()) {
+        throw std::logic_error("Can't find overlay: " + overlayId);
+    }
+    // find max overlay index
+    int index = -1;
+    for (const auto& entry : overlays) {
+        if (entry.second->index > index) {
+            index = entry.second->index;
+        }
+    }
+    overlays[overlayId]->up(index + 1);
+}
+
+void Studio::downOverlay(const std::string &overlayId) {
+    if (overlays.find(overlayId) == overlays.end()) {
+        throw std::logic_error("Can't find overlay: " + overlayId);
+    }
+    overlays[overlayId]->down();
+}
+
+std::map<std::string, Overlay *> &Studio::getOverlays() {
+    return overlays;
 }
 
 Scene *Studio::findScene(std::string &sceneId) {
