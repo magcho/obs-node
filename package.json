@@ -1,6 +1,6 @@
 {
   "name": "obs-node",
-  "version": "1.0.53",
+  "version": "1.0.54",
   "repository": "https://github.com/BICBT/obs-node.git",
   "main": "dist/index.js",
   "scripts": {
