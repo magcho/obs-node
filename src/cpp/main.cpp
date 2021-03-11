@@ -248,6 +248,11 @@ Napi::Value updateAudio(const Napi::CallbackInfo &info) {
         TRY_METHOD(studio->setAudioWithVideo(audioWithVideo.As<Napi::Boolean>()))
     }
 
+    auto pgmMonitor = request.Get("pgmMonitor");
+    if (!pgmMonitor.IsUndefined()) {
+        TRY_METHOD(studio->setPgmMonitor(pgmMonitor.As<Napi::Boolean>()))
+    }
+
     return info.Env().Undefined();
 }
 
