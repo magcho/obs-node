@@ -1,6 +1,6 @@
 @echo off
 
-set OBS_STUDIO_VERSION=26.0.2-patch9
+set OBS_STUDIO_VERSION=26.0.2-patch10
 set WINDOWS_DEPS_VERSION=dependencies2017
 
 set BASE_DIR=%CD%
