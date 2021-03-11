@@ -40,3 +40,11 @@ project. Run
 bash linux-dev/build-and-run.sh
 ```
 to run and attach the docker env. 
+
+## Release new version
+Run following commands to release a new obs-node version
+```
+git checkout master
+git pull
+bash scripts/release.sh
+```
