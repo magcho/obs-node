@@ -231,6 +231,10 @@ void Studio::setAudioWithVideo(bool audioWithVideo) {
     obs_set_audio_with_video(audioWithVideo);
 }
 
+void Studio::setPgmMonitor(bool pgmMonitor) {
+    obs_set_pgm_audio_monitor(pgmMonitor);
+}
+
 float Studio::getMasterVolume() {
     return obs_mul_to_db(obs_get_master_volume());
 }

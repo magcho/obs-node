@@ -115,6 +115,7 @@ declare namespace obs {
     export interface UpdateAudioRequest {
         masterVolume?: number;
         audioWithVideo?: boolean;
+        pgmMonitor?: boolean;
     }
 
     export interface Overlay {

@@ -43,6 +43,8 @@ public:
 
     void setAudioWithVideo(bool audioWithVideo);
 
+    void setPgmMonitor(bool pgmMonitor);
+
     float getMasterVolume();
 
     void setMasterVolume(float volume);
