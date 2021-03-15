@@ -1,5 +1,6 @@
 #include "overlay.h"
 #include "utils.h"
+#include "studio.h"
 
 #define OBS_OVERLAY_START_CHANNEL 10
 
@@ -167,6 +168,9 @@ CGText::CGText(const std::string &itemId, Napi::Object object, double scaleX) : 
     obs_data_set_int(settings, "color2", (int) hex_to_number(colorABGR));
     obs_data_set_string(settings, "text", content.c_str());
     obs_data_set_int(settings, "custom_width", (int) (width * scaleX));
+    if (!Studio::getFontPath().empty()) {
+        obs_data_set_string(settings, "custom_font_path", Studio::getFontPath().c_str());
+    }
     obs_source = obs_source_create("text_ft2_source_v2", itemId.c_str(), settings, nullptr);
     obs_data_release(font);
     obs_data_release(settings);

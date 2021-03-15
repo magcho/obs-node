@@ -32,6 +32,12 @@ Napi::Value setObsPath(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
 }
 
+Napi::Value setFontPath(const Napi::CallbackInfo &info) {
+    std::string fontPath = info[0].As<Napi::String>();
+    Studio::setFontPath(fontPath);
+    return info.Env().Undefined();
+}
+
 Napi::Value startup(const Napi::CallbackInfo &info) {
 #ifdef __linux__
     int argc = 0;
@@ -322,6 +328,7 @@ Napi::Value getOverlays(const Napi::CallbackInfo &info) {
 
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "setObsPath"), Napi::Function::New(env, setObsPath));
+    exports.Set(Napi::String::New(env, "setFontPath"), Napi::Function::New(env, setFontPath));
     exports.Set(Napi::String::New(env, "startup"), Napi::Function::New(env, startup));
     exports.Set(Napi::String::New(env, "shutdown"), Napi::Function::New(env, shutdown));
     exports.Set(Napi::String::New(env, "addScene"), Napi::Function::New(env, addScene));
