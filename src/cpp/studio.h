@@ -12,9 +12,11 @@ class Studio {
 
 public:
     static void setObsPath(std::string &obsPath);
+    static void setFontPath(std::string &fontPath);
     static std::string getObsBinPath();
     static std::string getObsPluginPath();
     static std::string getObsPluginDataPath();
+    static std::string getFontPath();
 
     Studio(Settings *settings);
     ~Studio();
@@ -64,6 +66,7 @@ private:
     Scene *findScene(std::string &sceneId);
 
     static std::string obsPath;
+    static std::string fontPath;
     Settings *settings;
     std::map<std::string, Scene *> scenes;
     std::map<std::string, obs_source_t *> transitions;

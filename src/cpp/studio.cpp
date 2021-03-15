@@ -5,6 +5,7 @@
 
 std::mutex scenes_mtx;
 std::string Studio::obsPath;
+std::string Studio::fontPath;
 
 Studio::Studio(Settings *settings) :
           settings(settings),
@@ -196,6 +197,10 @@ void Studio::setObsPath(std::string &obsPath) {
     Studio::obsPath = obsPath;
 }
 
+void Studio::setFontPath(std::string &fontPath) {
+    Studio::fontPath = fontPath;
+}
+
 void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId) {
     auto found = displays.find(displayName);
     if (found != displays.end()) {
@@ -323,4 +328,8 @@ std::string Studio::getObsPluginDataPath() {
 #else
     return obsPath + "/data/obs-plugins";
 #endif
+}
+
+std::string Studio::getFontPath() {
+    return fontPath;
 }
