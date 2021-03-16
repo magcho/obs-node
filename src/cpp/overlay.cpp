@@ -4,9 +4,9 @@
 
 #define OBS_OVERLAY_START_CHANNEL 10
 
-long hex_to_number(const std::string &hex) {
+unsigned long hex_to_number(const std::string &hex) {
     char *p;
-    long n = strtol(hex.c_str(), &p, 16);
+    unsigned long n = strtoul(hex.c_str(), &p, 16);
     if (*p != 0) {
         blog(LOG_INFO, "can't convert hex string to number: %s", hex.c_str());
         return -1L;
@@ -58,7 +58,7 @@ CG::CG(Napi::Object object) : Overlay(object) {
         return;
     }
     auto is = object.Get("items").As<Napi::Array>();
-    for (int i = 0; i < is.Length(); ++i) {
+    for (uint32_t i = 0; i < is.Length(); ++i) {
         auto item = is.Get(i).As<Napi::Object>();
         std::string type = item.Get("type").As<Napi::String>();
         std::string itemId = id + "_item_" + std::to_string(i);
@@ -117,7 +117,7 @@ Napi::Object CG::toNapiObject(Napi::Env env) {
     object.Set("baseWidth", baseWidth);
     object.Set("baseHeight", baseHeight);
     Napi::Array is = Napi::Array::New(env, items.size());
-    for (size_t i = 0; i < items.size(); ++i) {
+    for (uint32_t i = 0; i < items.size(); ++i) {
         is.Set(i, items[i]->toNapiObject(env));
     }
     object.Set("items", is);
@@ -164,8 +164,8 @@ CGText::CGText(const std::string &itemId, Napi::Object object, double scaleX) : 
     obs_data_set_string(font, "face", fontFamily.c_str());
     obs_data_set_int(font, "size", (int) (fontSize * scaleX));
     obs_data_set_obj(settings, "font", font);
-    obs_data_set_int(settings, "color1", (int) hex_to_number(colorABGR));
-    obs_data_set_int(settings, "color2", (int) hex_to_number(colorABGR));
+    obs_data_set_int(settings, "color1", hex_to_number(colorABGR));
+    obs_data_set_int(settings, "color2", hex_to_number(colorABGR));
     obs_data_set_string(settings, "text", content.c_str());
     obs_data_set_int(settings, "custom_width", (int) (width * scaleX));
     if (!Studio::getFontPath().empty()) {
