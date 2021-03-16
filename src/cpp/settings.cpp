@@ -47,7 +47,7 @@ Settings::Settings(const Napi::Object &settings) :
     // output settings
     if (!settings.Get("outputs").IsUndefined()) {
         auto outputObjects = settings.Get("outputs").As<Napi::Array>();
-        for (int i = 0; i < outputObjects.Length(); ++i) {
+        for (uint32_t i = 0; i < outputObjects.Length(); ++i) {
             outputs.push_back(new OutputSettings(outputObjects.Get(i).As<Napi::Object>()));
         }
     }
