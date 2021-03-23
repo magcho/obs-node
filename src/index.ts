@@ -74,6 +74,7 @@ declare namespace obs {
         startOnActive: boolean;
         enableBuffer?: boolean;
         bufferSize?: number;
+        reconnectDelaySec?: number;
         output?: OutputSettings;
     }
 

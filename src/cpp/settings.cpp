@@ -102,6 +102,7 @@ SourceSettings::SourceSettings(const Napi::Object &settings) :
     hardwareDecoder = getNapiBoolean(settings, "hardwareDecoder");
     enableBuffer = getNapiBooleanOrDefault(settings, "enableBuffer", true);
     bufferSize = getNapiIntOrDefault(settings, "bufferSize", 2);
+    reconnectDelaySec = getNapiIntOrDefault(settings, "reconnectDelaySec", 10);
     if (!settings.Get("output").IsUndefined()) {
         auto outputSettings = settings.Get("output").As<Napi::Object>();
         output = new OutputSettings(outputSettings);
