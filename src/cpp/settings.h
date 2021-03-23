@@ -58,5 +58,6 @@ public:
     bool hardwareDecoder;
     bool enableBuffer;
     int bufferSize;
+    int reconnectDelaySec;
     OutputSettings *output;
 };
