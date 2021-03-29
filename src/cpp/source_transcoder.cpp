@@ -141,8 +141,6 @@ void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *
     // clear frame buffer, only keep latest frame
     if (transcoder->last_frame_ts &&
         uint64_diff(transcoder->last_frame_ts, new_frame->timestamp) > VIDEO_RESET_THRESHOLD) {
-        blog(LOG_INFO, "[%s] video timestamp reset: %llu -> %llu",
-             transcoder->source->id.c_str(), transcoder->last_frame_ts, new_frame->timestamp);
         transcoder->reset_video();
     }
 
@@ -220,8 +218,6 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
     // if audio time output range, reset audio
     if (!transcoder->audio_time || current_audio_time < transcoder->audio_time ||
         current_audio_time - transcoder->audio_time > AUDIO_RESET_THRESHOLD) {
-        blog(LOG_INFO, "[%s] audio timestamp reset %llu -> %llu",
-             transcoder->source->id.c_str(), current_audio_time, transcoder->audio_time);
         transcoder->reset_audio();
         transcoder->audio_time = current_audio_time;
         transcoder->last_audio_time = current_audio_time;
@@ -229,7 +225,6 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
 
     uint64_t diff = uint64_diff(transcoder->last_audio_time, current_audio_time);
     if (diff > AUDIO_SMOOTH_THRESHOLD) {
-        blog(LOG_INFO, "[%s] audio buffer placement: %llu", transcoder->source->id.c_str(), diff);
         size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - transcoder->audio_time) * sizeof(float);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_place(&transcoder->audio_buf[i], buf_placement, audio_data->data[i], audio_size);
@@ -275,8 +270,6 @@ bool SourceTranscoder::audio_output_callback(
         result = true;
     } else if (transcoder->audio_time >= ts.end) {
         // audio go forward, send mute
-        blog(LOG_INFO, "[%s] audio go forward, audio time: %llu, ts.end: %llu",
-             transcoder->source->id.c_str(), transcoder->audio_time, ts.end);
         result = true;
     } else {
         size_t buffer_size = transcoder->audio_buf[0].size;
@@ -310,8 +303,6 @@ bool SourceTranscoder::audio_output_callback(
         }
         if (!result && (end_ts_in - ts.start >= AUDIO_MAX_TIMESTAMP_BUFFER)) {
             // audio lagged too much, reset audio and send mute
-            blog(LOG_INFO, "[%s] audio timestamp buffer exceed limit: %llu, audio time: %llu, ts.end: %llu",
-                 transcoder->source->id.c_str(), end_ts_in - ts.start, transcoder->audio_time, ts.end);
             transcoder->reset_audio();
             result = true;
         }
