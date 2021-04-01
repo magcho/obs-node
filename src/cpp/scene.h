@@ -14,7 +14,7 @@ public:
 
     std::string getId() { return id; }
 
-    void addSource(std::string &sourceId, std::shared_ptr<SourceSettings> &settings);
+    void addSource(std::string &sourceId, const Napi::Object &settings);
 
     Source *findSource(std::string &sourceId);
 

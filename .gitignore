@@ -1,7 +1,10 @@
+.idea/
 node_modules/
 build/
 obs-studio-build/
+obs-browser/
 prebuild/
 cmake-*/
 dist/
-.idea/
+clips/
+cef.log

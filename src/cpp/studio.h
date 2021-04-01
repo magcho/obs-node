@@ -27,7 +27,9 @@ public:
 
     void addScene(std::string &sceneId);
 
-    void addSource(std::string &sceneId, std::string &sourceId, std::shared_ptr<SourceSettings> &settings);
+    void removeScene(std::string &sceneId);
+
+    void addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings);
 
     Source *findSource(std::string &sceneId, std::string &sourceId);
 
@@ -41,15 +43,9 @@ public:
 
     void moveDisplay(std::string &displayName, int x, int y, int width, int height);
 
-    bool getAudioWithVideo();
+    Napi::Object getAudio(Napi::Env env);
 
-    void setAudioWithVideo(bool audioWithVideo);
-
-    void setPgmMonitor(bool pgmMonitor);
-
-    float getMasterVolume();
-
-    void setMasterVolume(float volume);
+    void updateAudio(const Napi::Object &audio);
 
     void addOverlay(Overlay *overlay);
 

@@ -3,32 +3,48 @@
 #include <obs.h>
 
 VideoSettings::VideoSettings(const Napi::Object &videoSettings) {
-    baseWidth = getNapiInt(videoSettings, "baseWidth");
-    baseHeight = getNapiInt(videoSettings, "baseHeight");
-    outputWidth = getNapiInt(videoSettings, "outputWidth");
-    outputHeight = getNapiInt(videoSettings, "outputHeight");
-    fpsNum = getNapiInt(videoSettings, "fpsNum");
-    fpsDen = getNapiInt(videoSettings, "fpsDen");
+    baseWidth = NapiUtil::getInt(videoSettings, "baseWidth");
+    baseHeight = NapiUtil::getInt(videoSettings, "baseHeight");
+    outputWidth = NapiUtil::getInt(videoSettings, "outputWidth");
+    outputHeight = NapiUtil::getInt(videoSettings, "outputHeight");
+    fpsNum = NapiUtil::getInt(videoSettings, "fpsNum");
+    fpsDen = NapiUtil::getInt(videoSettings, "fpsDen");
 }
 
 AudioSettings::AudioSettings(const Napi::Object &audioSettings) {
-    sampleRate = getNapiInt(audioSettings, "sampleRate");
+    sampleRate = NapiUtil::getInt(audioSettings, "sampleRate");
 }
 
 OutputSettings::OutputSettings(const Napi::Object &outputSettings) {
-    server = getNapiString(outputSettings, "server");
-    key = getNapiString(outputSettings, "key");
-    hardwareEnable = getNapiBoolean(outputSettings, "hardwareEnable");
-    width = getNapiInt(outputSettings, "width");
-    height = getNapiInt(outputSettings, "height");
-    keyintSec = getNapiInt(outputSettings, "keyintSec");
-    rateControl = getNapiString(outputSettings, "rateControl");
-    preset = getNapiString(outputSettings, "preset");
-    profile = getNapiString(outputSettings, "profile");
-    tune = getNapiString(outputSettings, "tune");
-    x264opts = getNapiStringOrDefault(outputSettings, "x264opts", "");
-    videoBitrateKbps = getNapiInt(outputSettings, "videoBitrateKbps");
-    audioBitrateKbps = getNapiInt(outputSettings, "audioBitrateKbps");
+    server = NapiUtil::getString(outputSettings, "server");
+    key = NapiUtil::getString(outputSettings, "key");
+    hardwareEnable = NapiUtil::getBoolean(outputSettings, "hardwareEnable");
+    width = NapiUtil::getInt(outputSettings, "width");
+    height = NapiUtil::getInt(outputSettings, "height");
+    keyintSec = NapiUtil::getInt(outputSettings, "keyintSec");
+    rateControl = NapiUtil::getString(outputSettings, "rateControl");
+    preset = NapiUtil::getString(outputSettings, "preset");
+    profile = NapiUtil::getString(outputSettings, "profile");
+    tune = NapiUtil::getString(outputSettings, "tune");
+    x264opts = NapiUtil::getStringOptional(outputSettings, "x264opts").value_or("");
+    videoBitrateKbps = NapiUtil::getInt(outputSettings, "videoBitrateKbps");
+    audioBitrateKbps = NapiUtil::getInt(outputSettings, "audioBitrateKbps");
+}
+
+bool OutputSettings::equals(OutputSettings *settings) {
+    return server == settings->server &&
+            key == settings->key &&
+            hardwareEnable == settings->hardwareEnable &&
+            width == settings->width &&
+            height == settings->height &&
+            keyintSec == settings->keyintSec &&
+            rateControl == settings->rateControl &&
+            preset == settings->preset &&
+            profile == settings->profile &&
+            tune == settings->tune &&
+            x264opts == settings->x264opts &&
+            videoBitrateKbps == settings->videoBitrateKbps &&
+            audioBitrateKbps == settings->audioBitrateKbps;
 }
 
 Settings::Settings(const Napi::Object &settings) :
@@ -91,24 +107,4 @@ Settings::~Settings() {
     for (auto output : outputs) {
         delete output;
     }
-}
-
-SourceSettings::SourceSettings(const Napi::Object &settings) :
-        output(nullptr) {
-    type = getNapiString(settings, "type");
-    isFile = getNapiBooleanOrDefault(settings, "isFile", false);
-    url = getNapiString(settings, "url");
-    startOnActive = getNapiBooleanOrDefault(settings, "startOnActive", false);
-    hardwareDecoder = getNapiBoolean(settings, "hardwareDecoder");
-    enableBuffer = getNapiBooleanOrDefault(settings, "enableBuffer", true);
-    bufferSize = getNapiIntOrDefault(settings, "bufferSize", 2);
-    reconnectDelaySec = getNapiIntOrDefault(settings, "reconnectDelaySec", 10);
-    if (!settings.Get("output").IsUndefined()) {
-        auto outputSettings = settings.Get("output").As<Napi::Object>();
-        output = new OutputSettings(outputSettings);
-    }
-}
-
-SourceSettings::~SourceSettings() {
-    delete output;
 }
