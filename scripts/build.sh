@@ -52,6 +52,10 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
     fi
   fi
 
+  # Download CEF
+    wget https://cdn-fastly.obsproject.com/downloads/cef_binary_4280_linux64.tar.bz2
+    tar -xjf ./cef_binary_4280_linux64.tar.bz2
+
   # Compile obs-studio
   echo "Compile obs-studio"
   pushd "${OBS_STUDIO_DIR}"
@@ -76,6 +80,8 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
           -DDISABLE_UI=TRUE \
           -DDISABLE_PYTHON=ON \
           -DCMAKE_BUILD_TYPE="${RELEASE_TYPE}" \
+          -DBUILD_BROWSER=ON \
+          -DCEF_ROOT_DIR="../../cef_binary_4280_linux64" \
           ..
     cmake --build . --target install --config "${RELEASE_TYPE}" -- -j 4
   else

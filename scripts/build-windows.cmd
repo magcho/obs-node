@@ -2,6 +2,7 @@
 
 set OBS_STUDIO_VERSION=26.0.2.14
 set WINDOWS_DEPS_VERSION=dependencies2017
+set CEF_VERSION=75.1.16+g16a67c4+chromium-75.0.3770.100
 
 set BASE_DIR=%CD%
 set BUILD_DIR=%BASE_DIR%\build
@@ -12,6 +13,7 @@ if not "%OBS_STUDIO_DIR%" == "" (
     set OBS_STUDIO_DIR=%OBS_STUDIO_BUILD_DIR%\obs-studio-%OBS_STUDIO_VERSION%
 )
 set WINDOWS_DEPS_DIR=%OBS_STUDIO_BUILD_DIR%\%WINDOWS_DEPS_VERSION%
+set CEF_DIR=%OBS_STUDIO_BUILD_DIR%\cef
 set OBS_INSTALL_PREFIX=%OBS_STUDIO_BUILD_DIR%\obs-installed
 set PREBUILD_DIR=%BASE_DIR%\prebuild
 
@@ -56,6 +58,12 @@ if "%BUILD_OBS_STUDIO%" == "true" (
         )
         7z x "%WINDOWS_DEPS_VERSION%.zip" -o"%WINDOWS_DEPS_DIR%"
     )
+    if not exist "%CEF_DIR%" (
+        if not exist "cef.zip" (
+            curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_%CEF_VERSION%_windows64_minimal.zip -f --retry 5 -o cef.zip
+        )
+        7z x "cef.zip" -o"%CEF_DIR%"
+    )
     mkdir "%OBS_STUDIO_DIR%\build" 2>NUL
     cd "%OBS_STUDIO_DIR%\build"
     cmake -G"Visual Studio 16 2019" ^
@@ -66,6 +74,7 @@ if "%BUILD_OBS_STUDIO%" == "true" (
         -DDISABLE_UI=TRUE ^
         -DDISABLE_PYTHON=ON ^
         -DCMAKE_BUILD_TYPE="%RELEASE_TYPE%" ^
+        -DCEF_ROOT_DIR="%CEF_DIR%/cef_binary_%CEF_VERSION%_windows64_minimal" ^
         ..
     rmdir /s /q %OBS_INSTALL_PREFIX% 2>NUL
     cmake --build . --target install --config %RELEASE_TYPE% -v
