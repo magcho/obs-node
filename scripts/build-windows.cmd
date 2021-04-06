@@ -1,7 +1,7 @@
 @echo off
 
 set OBS_STUDIO_VERSION=26.0.2.14
-set WINDOWS_DEPS_VERSION=dependencies2017
+set WINDOWS_DEPS_VERSION=dependencies2019
 set CEF_VERSION=75.1.16+g16a67c4+chromium-75.0.3770.100
 
 set BASE_DIR=%CD%
@@ -74,7 +74,7 @@ if "%BUILD_OBS_STUDIO%" == "true" (
         -DDISABLE_UI=TRUE ^
         -DDISABLE_PYTHON=ON ^
         -DCMAKE_BUILD_TYPE="%RELEASE_TYPE%" ^
-        -DCEF_ROOT_DIR="%CEF_DIR%/cef_binary_%CEF_VERSION%_windows64_minimal" ^
+        -DCEF_ROOT_DIR="%CEF_DIR%\cef_binary_%CEF_VERSION%_windows64_minimal" ^
         ..
     rmdir /s /q %OBS_INSTALL_PREFIX% 2>NUL
     cmake --build . --target install --config %RELEASE_TYPE% -v
