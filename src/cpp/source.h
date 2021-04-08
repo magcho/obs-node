@@ -8,6 +8,7 @@
 enum SourceType {
     Image = 0,
     MediaSource = 1,
+    BrowserSource = 2,
 };
 
 class Source {
