@@ -24,6 +24,8 @@ SourceType Source::getSourceType(const std::string &sourceType) {
         return Image;
     } else if (sourceType == "MediaSource") {
         return MediaSource;
+    } else if (sourceType == "BrowserSource") {
+        return BrowserSource;
     } else {
         throw std::invalid_argument("Invalid sourceType: " + sourceType);
     }
@@ -35,6 +37,8 @@ std::string Source::getSourceTypeString(SourceType sourceType) {
             return "Image";
         case MediaSource:
             return "MediaSource";
+        case BrowserSource:
+            return "BrowserSource";
         default:
             throw std::invalid_argument("Invalid sourceType: " + std::to_string(sourceType));
     }
@@ -144,6 +148,17 @@ void Source::start() {
         obs_data_set_int(obs_data, "reconnect_delay_sec", settings->reconnectDelaySec);
         obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
         obs_source_set_async_unbuffered(obs_source, !settings->enableBuffer);
+    } else if (type == BrowserSource) {
+        obs_data_set_bool(obs_data, "is_local_file", settings->isFile);
+        obs_data_set_string(obs_data, settings->isFile ? "local_file" : "url", url.c_str());
+        obs_video_info ovi = {};
+        obs_get_video_info(&ovi);
+        obs_data_set_int(obs_data, "width", ovi.base_width);
+        obs_data_set_int(obs_data, "height", ovi.base_height);
+        obs_data_set_string(obs_data, "css", "body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }");
+        obs_data_set_bool(obs_data, "restart_when_active", false);
+        obs_data_set_bool(obs_data, "shutdown", false);
+        obs_source = obs_source_create("browser_source", this->id.c_str(), obs_data, nullptr);
     }
 
     obs_data_release(obs_data);

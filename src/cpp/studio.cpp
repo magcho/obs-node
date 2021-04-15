@@ -6,6 +6,7 @@
 std::mutex scenes_mtx;
 std::string Studio::obsPath;
 std::string Studio::fontPath;
+std::function<bool(std::function<void()>)> Studio::cef_queue_task_callback;
 
 Studio::Studio(Settings *settings) :
           settings(settings),
@@ -35,7 +36,7 @@ void Studio::startup() {
     };
 
     try {
-        obs_startup("en-US", nullptr, nullptr);
+        obs_startup(settings->locale.c_str(), nullptr, nullptr);
         if (!obs_initialized()) {
             throw std::runtime_error("Failed to startup obs studio.");
         }
@@ -76,6 +77,12 @@ void Studio::startup() {
             }
         }
 
+        // setup cef queue task callback
+        obs_data_t *settings = obs_data_create();
+        obs_data_set_int(settings, "cef_queue_task_callback", reinterpret_cast<uint64_t>(&Studio::cef_queue_task_callback));
+        obs_apply_private_data(settings);
+        obs_data_release(settings);
+
         // load modules
 #ifdef _WIN32
         loadModule(getObsPluginPath() + "\\image-source.dll", getObsPluginDataPath() + "\\image-source");
@@ -85,6 +92,7 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "\\obs-x264.dll", getObsPluginDataPath() + "\\obs-x264");
         loadModule(getObsPluginPath() + "\\obs-outputs.dll", getObsPluginDataPath() + "\\obs-outputs");
         loadModule(getObsPluginPath() + "\\text-freetype2.dll", getObsPluginDataPath() + "\\text-freetype2");
+        loadModule(getObsPluginPath() + "\\obs-browser.dll", getObsPluginDataPath() + "\\obs-browser");
 #else
         loadModule(getObsPluginPath() + "/image-source.so", getObsPluginDataPath() + "/image-source");
         loadModule(getObsPluginPath() + "/obs-ffmpeg.so", getObsPluginDataPath() + "/obs-ffmpeg");
@@ -93,6 +101,7 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "/obs-x264.so", getObsPluginDataPath() + "/obs-x264");
         loadModule(getObsPluginPath() + "/obs-outputs.so", getObsPluginDataPath() + "/obs-outputs");
         loadModule(getObsPluginPath() + "/text-freetype2.so", getObsPluginDataPath() + "/text-freetype2");
+        loadModule(getObsPluginPath() + "/obs-browser.so", getObsPluginDataPath() + "/obs-browser");
 #endif
 
         obs_post_load_modules();
@@ -199,6 +208,10 @@ void Studio::setObsPath(std::string &obsPath) {
 
 void Studio::setFontPath(std::string &fontPath) {
     Studio::fontPath = fontPath;
+}
+
+void Studio::setCefQueueTaskCallback(std::function<bool(std::function<void()>)> callback) {
+    Studio::cef_queue_task_callback = callback;
 }
 
 void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId) {

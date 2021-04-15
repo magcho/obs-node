@@ -1,7 +1,8 @@
 @echo off
 
-set OBS_STUDIO_VERSION=26.0.2.14
-set WINDOWS_DEPS_VERSION=dependencies2017
+set OBS_STUDIO_VERSION=26.0.2.15
+set WINDOWS_DEPS_VERSION=dependencies2019
+set CEF_VERSION=75.1.14+gc81164e+chromium-75.0.3770.100
 
 set BASE_DIR=%CD%
 set BUILD_DIR=%BASE_DIR%\build
@@ -12,22 +13,28 @@ if not "%OBS_STUDIO_DIR%" == "" (
     set OBS_STUDIO_DIR=%OBS_STUDIO_BUILD_DIR%\obs-studio-%OBS_STUDIO_VERSION%
 )
 set WINDOWS_DEPS_DIR=%OBS_STUDIO_BUILD_DIR%\%WINDOWS_DEPS_VERSION%
+set CEF_DIR=%OBS_STUDIO_BUILD_DIR%\cef\cef_binary_%CEF_VERSION%_windows64
 set OBS_INSTALL_PREFIX=%OBS_STUDIO_BUILD_DIR%\obs-installed
 set PREBUILD_DIR=%BASE_DIR%\prebuild
 
 set BUILD_TYPE=%1
+set BUILD_CEF=false
 set BUILD_OBS_STUDIO=false
 set BUILD_OBS_NODE=false
 if "%BUILD_TYPE%" == "all" (
+    set BUILD_CEF=true
     set BUILD_OBS_STUDIO=true
     set BUILD_OBS_NODE=true
 )
+if "%BUILD_TYPE%" == "cef" set BUILD_CEF=true
 if "%BUILD_TYPE%" == "obs-studio" set BUILD_OBS_STUDIO=true
 if "%BUILD_TYPE%" == "obs-node" set BUILD_OBS_NODE=true
-if not "%BUILD_OBS_STUDIO%" == "true" (
-    if not "%BUILD_OBS_NODE%" == "true" (
-        echo "The first argument should be 'all', 'obs-studio' or 'obs-node'"
-        exit /B 1
+if not "%BUILD_CEF%" == "true" (
+    if not "%BUILD_OBS_STUDIO%" == "true" (
+        if not "%BUILD_OBS_NODE%" == "true" (
+            echo "The first argument should be 'all', 'cef', obs-studio' or 'obs-node'"
+            exit /B 1
+        )
     )
 )
 
@@ -41,6 +48,20 @@ if not "%RELEASE_TYPE%" == "Release" (
 )
 
 mkdir "%PREBUILD_DIR%" 2>NUL
+if "%BUILD_CEF%" == "true" (
+    echo "Building CEF"
+    cd "%OBS_STUDIO_BUILD_DIR%"
+    if not exist "%CEF_DIR%" (
+        if not exist "cef.tar.bz2" (
+            curl -kL https://cef-builds.spotifycdn.com/cef_binary_75.1.14%2Bgc81164e%2Bchromium-75.0.3770.100_windows64.tar.bz2 -f --retry 5 -o cef.tar.bz2
+        )
+        mkdir cef
+        tar xf "cef.tar.bz2" -C "cef"
+    )
+    cmake -G"Visual Studio 16 2019" -A x64 -H%CEF_DIR% -B%CEF_DIR%\build -DCEF_RUNTIME_LIBRARY_FLAG="/MD"
+    cmake --build %CEF_DIR%\build --config %RELEASE_TYPE% --target libcef_dll_wrapper -v
+)
+
 if "%BUILD_OBS_STUDIO%" == "true" (
     echo "Building obs-studio"
     mkdir "%OBS_STUDIO_BUILD_DIR%" 2>NUL
@@ -56,6 +77,7 @@ if "%BUILD_OBS_STUDIO%" == "true" (
         )
         7z x "%WINDOWS_DEPS_VERSION%.zip" -o"%WINDOWS_DEPS_DIR%"
     )
+
     mkdir "%OBS_STUDIO_DIR%\build" 2>NUL
     cd "%OBS_STUDIO_DIR%\build"
     cmake -G"Visual Studio 16 2019" ^
@@ -66,6 +88,14 @@ if "%BUILD_OBS_STUDIO%" == "true" (
         -DDISABLE_UI=TRUE ^
         -DDISABLE_PYTHON=ON ^
         -DCMAKE_BUILD_TYPE="%RELEASE_TYPE%" ^
+        -DCEF_ROOT_DIR="%CEF_DIR%" ^
+        -DENABLE_SCRIPTING=false ^
+        -DBUILD_BROWSER=true ^
+        -DBROWSER_FRONTEND_API_SUPPORT=false ^
+        -DBROWSER_PANEL_SUPPORT=false ^
+        -DBROWSER_USE_STATIC_CRT=false ^
+        -DEXPERIMENTAL_SHARED_TEXTURE_SUPPORT=true ^
+        -DUSE_UI_LOOP=false ^
         ..
     rmdir /s /q %OBS_INSTALL_PREFIX% 2>NUL
     cmake --build . --target install --config %RELEASE_TYPE% -v

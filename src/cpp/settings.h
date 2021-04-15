@@ -42,6 +42,7 @@ class Settings {
 public:
     explicit Settings(const Napi::Object& settings);
     ~Settings();
+    std::string locale;
     VideoSettings *video;
     AudioSettings *audio;
     std::vector<OutputSettings*> outputs;
