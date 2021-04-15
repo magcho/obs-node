@@ -24,7 +24,7 @@ declare namespace obs {
 
     export type RateControl = 'CBR' | 'VBR';
 
-    export type SourceType = 'Image' | 'MediaSource';
+    export type SourceType = 'Image' | 'MediaSource' | 'BrowserSource';
 
     export type Position = 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left' | 'top-left' | 'center';
 
