@@ -29,6 +29,7 @@ SourceTranscoder::SourceTranscoder() :
         last_frame_ts(0),
         video_stop(false),
         video_thread(),
+        last_video_scale(),
         audio(nullptr),
         audio_buf(),
         audio_buf_mutex(),
@@ -103,8 +104,7 @@ void SourceTranscoder::stop() {
     video_output_close(video);
 
     if (video_scaler) {
-        video_scaler_destroy(video_scaler);
-        video_scaler = nullptr;
+        destroy_video_scaler();
     }
 
     reset_video();
@@ -129,7 +129,7 @@ void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *
     auto *frame = (obs_source_frame *) calldata_ptr(data, "frame");
 
     // create video scaler after first frame is received
-    if (!transcoder->video_scaler) {
+    if (!transcoder->video_scaler || transcoder->video_scale_changed(frame)) {
         transcoder->create_video_scaler(frame);
     }
 
@@ -324,7 +324,21 @@ bool SourceTranscoder::audio_output_callback(
     return result;
 }
 
+bool SourceTranscoder::video_scale_changed(obs_source_frame *frame) {
+    bool result = frame->format != last_video_scale.format
+        || frame->width != last_video_scale.width
+        || frame->height != last_video_scale.height
+        || frame->full_range != (last_video_scale.range == VIDEO_RANGE_FULL);
+    if (result) {
+        blog(LOG_INFO, "[%s] video scale changed", source->id.c_str());
+    }
+    return result;
+}
+
 void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
+    if (video_scaler) {
+        destroy_video_scaler();
+    }
     const struct video_output_info *voi = video_output_get_info(video);
     struct video_scale_info src = {
             .format = frame->format,
@@ -345,6 +359,12 @@ void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
     if (ret != VIDEO_SCALER_SUCCESS) {
         throw std::runtime_error("Failed to create video scaler.");
     }
+    last_video_scale = src;
+}
+
+void SourceTranscoder::destroy_video_scaler() {
+    video_scaler_destroy(video_scaler);
+    video_scaler = nullptr;
 }
 
 obs_source_frame *SourceTranscoder::get_closest_frame(uint64_t video_time) {
