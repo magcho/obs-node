@@ -42,7 +42,7 @@ SourceTranscoder::SourceTranscoder() :
 
 void SourceTranscoder::start(Source *s) {
     source = s;
-    output = new Output(source->settings->output);
+    output = new Output(source->output);
 
     // video output
     obs_video_info ovi = {};
@@ -52,8 +52,8 @@ void SourceTranscoder::start(Source *s) {
     std::string videoOutputName = std::string("source_video_output_") + source->id;
     voi.name = videoOutputName.c_str();
     voi.format = VIDEO_FORMAT_BGRA;
-    voi.width = source->settings->output->width;
-    voi.height = source->settings->output->height;
+    voi.width = source->output->width;
+    voi.height = source->output->height;
     voi.fps_num = ovi.fps_num;
     voi.fps_den = ovi.fps_den;
     voi.cache_size = 16;

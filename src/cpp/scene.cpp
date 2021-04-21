@@ -11,6 +11,9 @@ Scene::Scene(std::string &id, int index, Settings *settings) :
 }
 
 Scene::~Scene() {
+    for (auto source : sources) {
+        delete source.second;
+    }
     if (obs_scene) {
         obs_scene_release(obs_scene);
     }
@@ -19,12 +22,9 @@ Scene::~Scene() {
     }
 }
 
-void Scene::addSource(std::string &sourceId, std::shared_ptr<SourceSettings> &settings) {
+void Scene::addSource(std::string &sourceId, const Napi::Object &settings) {
     auto source = new Source(sourceId, id, obs_scene, settings);
     sources[sourceId] = source;
-
-    // Start the source as soon as it's added.
-    source->start();
 }
 
 obs_scene_t *Scene::createObsScene(std::string &sceneId) {

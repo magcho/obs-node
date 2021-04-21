@@ -1,4 +1,5 @@
 #include "studio.h"
+#include "utils.h"
 #include <filesystem>
 #include <mutex>
 #include <obs.h>
@@ -135,7 +136,14 @@ void Studio::addScene(std::string &sceneId) {
     scenes[sceneId] = scene;
 }
 
-void Studio::addSource(std::string &sceneId, std::string &sourceId, std::shared_ptr<SourceSettings> &settings) {
+void Studio::removeScene(std::string &sceneId) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
+    auto scene = scenes[sceneId];
+    scenes.erase(sceneId);
+    delete scene;
+}
+
+void Studio::addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings) {
     findScene(sceneId)->addSource(sourceId, settings);
 }
 
@@ -241,25 +249,20 @@ void Studio::moveDisplay(std::string &displayName, int x, int y, int width, int 
     found->second->move(x, y, width, height);
 }
 
-bool Studio::getAudioWithVideo() {
-    return obs_get_audio_with_video();
+Napi::Object Studio::getAudio(Napi::Env env) {
+    auto result = Napi::Object::New(env);
+    result.Set("volume", (int)obs_mul_to_db(obs_get_master_volume()));
+    result.Set("mode", obs_get_audio_with_video() ? "follow" : "standalone");
+    return result;
 }
 
-void Studio::setAudioWithVideo(bool audioWithVideo) {
-    obs_set_audio_with_video(audioWithVideo);
-}
-
-void Studio::setPgmMonitor(bool pgmMonitor) {
-    obs_set_pgm_audio_monitor(pgmMonitor);
-}
-
-float Studio::getMasterVolume() {
-    return obs_mul_to_db(obs_get_master_volume());
-}
-
-void Studio::setMasterVolume(float volume) {
-    // input volume is dB
-    obs_set_master_volume(obs_db_to_mul(volume));
+void Studio::updateAudio(const Napi::Object &audio) {
+    if (!NapiUtil::isUndefined(audio, "volume")) {
+        obs_set_master_volume(obs_db_to_mul((float)NapiUtil::getInt(audio, "volume")));
+    }
+    if (!NapiUtil::isUndefined(audio, "mode")) {
+        obs_set_audio_with_video(NapiUtil::getString(audio, "mode") == "follow");
+    }
 }
 
 void Studio::addOverlay(Overlay *overlay) {

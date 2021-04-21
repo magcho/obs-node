@@ -99,42 +99,28 @@ Napi::Value addScene(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
 }
 
+Napi::Value removeScene(const Napi::CallbackInfo &info) {
+    std::string sceneId = info[0].As<Napi::String>();
+    TRY_METHOD(studio->removeScene(sceneId))
+    return info.Env().Undefined();
+}
+
 Napi::Value addSource(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string sourceId = info[1].As<Napi::String>();
-    auto sourceSettings = std::make_shared<SourceSettings>(info[2].As<Napi::Object>());
-    TRY_METHOD(studio->addSource(sceneId, sourceId, sourceSettings))
+    auto settings = info[2].As<Napi::Object>();
+    TRY_METHOD(studio->addSource(sceneId, sourceId, settings))
     return info.Env().Undefined();
 }
 
 Napi::Value updateSource(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string sourceId = info[1].As<Napi::String>();
-    auto request = info[2].As<Napi::Object>();
+    auto settings = info[2].As<Napi::Object>();
 
     Source *source;
     TRY_METHOD(source = studio->findSource(sceneId, sourceId))
-
-    auto url = request.Get("url");
-    if (!url.IsUndefined()) {
-        TRY_METHOD(source->setUrl(url.As<Napi::String>()))
-    }
-
-    auto volume = request.Get("volume");
-    if (!volume.IsUndefined()) {
-        TRY_METHOD(source->setVolume(volume.As<Napi::Number>()))
-    }
-
-    auto audioLock = request.Get("audioLock");
-    if (!audioLock.IsUndefined()) {
-        TRY_METHOD(source->setAudioLock(audioLock.As<Napi::Boolean>()))
-    }
-
-    auto audioMonitor = request.Get("audioMonitor");
-    if (!audioMonitor.IsUndefined()) {
-        TRY_METHOD(source->setAudioMonitor(audioMonitor.As<Napi::Boolean>()))
-    }
-
+    TRY_METHOD(source->update(settings))
     return info.Env().Undefined();
 }
 
@@ -144,17 +130,7 @@ Napi::Object getSource(const Napi::CallbackInfo &info) {
 
     Source *source;
     TRY_METHOD(source = studio->findSource(sceneId, sourceId))
-
-    auto result = Napi::Object::New(info.Env());
-    result.Set("id", source->getId());
-    result.Set("sceneId", source->getSceneId());
-    result.Set("type", Source::getSourceTypeString(source->getType()));
-    result.Set("url", source->getUrl());
-    result.Set("volume", source->getVolume());
-    result.Set("audioLock", source->getAudioLock());
-    result.Set("audioMonitor", source->getAudioMonitor());
-
-    return result;
+    return source->toNapiObject(info.Env());
 }
 
 Napi::Value addDSK(const Napi::CallbackInfo &info) {
@@ -166,13 +142,6 @@ Napi::Value addDSK(const Napi::CallbackInfo &info) {
     int width = info[5].As<Napi::Number>();
     int height = info[6].As<Napi::Number>();
     TRY_METHOD(studio->addDSK(id, position, url, left, top, width, height))
-    return info.Env().Undefined();
-}
-
-Napi::Value restartSource(const Napi::CallbackInfo &info) {
-    std::string sceneId = info[0].As<Napi::String>();
-    std::string sourceId = info[1].As<Napi::String>();
-    TRY_METHOD(studio->findSource(sceneId, sourceId)->restart())
     return info.Env().Undefined();
 }
 
@@ -268,30 +237,13 @@ Napi::Value addVolmeterCallback(const Napi::CallbackInfo &info) {
 }
 
 Napi::Object getAudio(const Napi::CallbackInfo &info) {
-    auto result = Napi::Object::New(info.Env());
-    result.Set("masterVolume", studio->getMasterVolume());
-    result.Set("audioWithVideo", studio->getAudioWithVideo());
+    Napi::Object result;
+    TRY_METHOD(result = studio->getAudio(info.Env()))
     return result;
 }
 
 Napi::Value updateAudio(const Napi::CallbackInfo &info) {
-    auto request = info[0].As<Napi::Object>();
-
-    auto masterVolume = request.Get("masterVolume");
-    if (!masterVolume.IsUndefined()) {
-        TRY_METHOD(studio->setMasterVolume(masterVolume.As<Napi::Number>()))
-    }
-
-    auto audioWithVideo = request.Get("audioWithVideo");
-    if (!audioWithVideo.IsUndefined()) {
-        TRY_METHOD(studio->setAudioWithVideo(audioWithVideo.As<Napi::Boolean>()))
-    }
-
-    auto pgmMonitor = request.Get("pgmMonitor");
-    if (!pgmMonitor.IsUndefined()) {
-        TRY_METHOD(studio->setPgmMonitor(pgmMonitor.As<Napi::Boolean>()))
-    }
-
+    TRY_METHOD(studio->updateAudio(info[0].As<Napi::Object>()))
     return info.Env().Undefined();
 }
 
@@ -365,10 +317,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "startup"), Napi::Function::New(env, startup));
     exports.Set(Napi::String::New(env, "shutdown"), Napi::Function::New(env, shutdown));
     exports.Set(Napi::String::New(env, "addScene"), Napi::Function::New(env, addScene));
+    exports.Set(Napi::String::New(env, "removeScene"), Napi::Function::New(env, removeScene));
     exports.Set(Napi::String::New(env, "addSource"), Napi::Function::New(env, addSource));
     exports.Set(Napi::String::New(env, "getSource"), Napi::Function::New(env, getSource));
     exports.Set(Napi::String::New(env, "updateSource"), Napi::Function::New(env, updateSource));
-    exports.Set(Napi::String::New(env, "restartSource"), Napi::Function::New(env, restartSource));
     exports.Set(Napi::String::New(env, "switchToScene"), Napi::Function::New(env, switchToScene));
     exports.Set(Napi::String::New(env, "createDisplay"), Napi::Function::New(env, createDisplay));
     exports.Set(Napi::String::New(env, "destroyDisplay"), Napi::Function::New(env, destroyDisplay));

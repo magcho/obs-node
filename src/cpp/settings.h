@@ -22,6 +22,8 @@ class OutputSettings {
 
 public:
     explicit OutputSettings(const Napi::Object& outputSettings);
+    bool equals(OutputSettings *settings);
+
     std::string server;
     std::string key;
     bool hardwareEnable;
@@ -46,19 +48,4 @@ public:
     VideoSettings *video;
     AudioSettings *audio;
     std::vector<OutputSettings*> outputs;
-};
-
-class SourceSettings {
-public:
-    explicit SourceSettings(const Napi::Object& settings);
-    ~SourceSettings();
-    std::string type;
-    bool isFile;
-    std::string url;
-    bool startOnActive;
-    bool hardwareDecoder;
-    bool enableBuffer;
-    int bufferSize;
-    int reconnectDelaySec;
-    OutputSettings *output;
 };
