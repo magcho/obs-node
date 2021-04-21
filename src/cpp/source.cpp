@@ -15,9 +15,9 @@ struct ScreenshotContext {
 
 SourceType Source::getSourceType(const std::string &sourceType) {
     if (sourceType == "live") {
-        return Live;
+        return SOURCE_TYPE_LIVE;
     } else if (sourceType == "media") {
-        return Media;
+        return SOURCE_TYPE_MEDIA;
     } else {
         throw std::invalid_argument("Invalid sourceType: " + sourceType);
     }
@@ -25,9 +25,9 @@ SourceType Source::getSourceType(const std::string &sourceType) {
 
 std::string Source::getSourceTypeString(SourceType sourceType) {
     switch (sourceType) {
-        case Live:
+        case SOURCE_TYPE_LIVE:
             return "live";
-        case Media:
+        case SOURCE_TYPE_MEDIA:
             return "media";
         default:
             throw std::invalid_argument("Invalid sourceType: " + std::to_string(sourceType));
@@ -97,7 +97,7 @@ void Source::screenshot_callback(void *param) {
 void Source::source_activate_callback(void *param, calldata_t *data) {
     UNUSED_PARAMETER(data);
     auto source = (Source *) param;
-    if (source->type == Media && source->playOnActive) {
+    if (source->type == SOURCE_TYPE_MEDIA && source->playOnActive) {
         source->play();
     }
 }
@@ -105,7 +105,7 @@ void Source::source_activate_callback(void *param, calldata_t *data) {
 void Source::source_deactivate_callback(void *param, calldata_t *data) {
     UNUSED_PARAMETER(data);
     auto source = (Source *) param;
-    if (source->type == Media && source->playOnActive) {
+    if (source->type == SOURCE_TYPE_MEDIA && source->playOnActive) {
         source->stopToBeginning();
     }
 }
@@ -220,10 +220,17 @@ void Source::update(const Napi::Object &settings) {
         }
     }
     if (!NapiUtil::isUndefined(settings, "output")) {
-        auto value = new OutputSettings(settings.Get("output").As<Napi::Object>());
-        if (!output || !output->equals(value)) {
-            output = value;
-            restartOutput = true;
+        if (settings.Get("output").IsNull()) {
+            if (output) {
+                stopOutput();
+                output = nullptr;
+            }
+        } else {
+            auto value = new OutputSettings(settings.Get("output").As<Napi::Object>());
+            if (!output || !output->equals(value)) {
+                output = value;
+                restartOutput = true;
+            }
         }
     }
     if (restart) {
@@ -236,11 +243,11 @@ void Source::update(const Napi::Object &settings) {
 }
 
 void Source::screenshot(std::function<void(uint8_t*, int)> callback) {
-    auto p = new ScreenshotContext {
+    auto context = new ScreenshotContext {
       .source = this,
       .callback = std::move(callback),
     };
-    obs_queue_task(OBS_TASK_GRAPHICS, screenshot_callback, p, false);
+    obs_queue_task(OBS_TASK_GRAPHICS, screenshot_callback, context, false);
 }
 
 Napi::Object Source::toNapiObject(Napi::Env env) {
@@ -263,9 +270,9 @@ Napi::Object Source::toNapiObject(Napi::Env env) {
 
 void Source::start() {
     obs_data_t *obs_data = obs_data_create();
-    obs_data_set_bool(obs_data, "is_local_file", type == Media);
-    obs_data_set_string(obs_data, type == Media ? "local_file" : "input", url.c_str());
-    obs_data_set_bool(obs_data, "looping", type == Media);
+    obs_data_set_bool(obs_data, "is_local_file", type == SOURCE_TYPE_MEDIA);
+    obs_data_set_string(obs_data, type == SOURCE_TYPE_MEDIA ? "local_file" : "input", url.c_str());
+    obs_data_set_bool(obs_data, "looping", type == SOURCE_TYPE_MEDIA);
     obs_data_set_bool(obs_data, "hw_decode", hardwareDecoder);
     obs_data_set_bool(obs_data, "close_when_inactive", false);  // make source always read
     obs_data_set_bool(obs_data, "restart_on_activate", false);  // make source always read
@@ -313,7 +320,7 @@ void Source::start() {
     obs_fader_attach_source(obs_fader, obs_source);
 
     // pause to beginning if it's start at active
-    if (type == Media && playOnActive) {
+    if (type == SOURCE_TYPE_MEDIA && playOnActive) {
         stopToBeginning();
     }
 

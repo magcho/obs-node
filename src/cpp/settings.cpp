@@ -52,6 +52,8 @@ Settings::Settings(const Napi::Object &settings) :
         audio(nullptr),
         outputs() {
 
+    locale = NapiUtil::getStringOptional(settings, "locale").value_or("zh-CN");
+
     // video settings
     auto videoSettings = settings.Get("video").As<Napi::Object>();
     video = new VideoSettings(videoSettings);

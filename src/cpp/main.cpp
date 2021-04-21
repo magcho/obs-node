@@ -16,6 +16,7 @@ QApplication *qApplication;
 Studio *studio = nullptr;
 Settings *settings = nullptr;
 Napi::ThreadSafeFunction volmeter_thread = nullptr;
+Napi::ThreadSafeFunction cef_queue_task_thread = nullptr;
 
 struct VolmeterData {
     std::string sceneId;
@@ -25,6 +26,26 @@ struct VolmeterData {
     std::vector<float> peak;
     std::vector<float> input_peak;
 };
+
+struct CefCallbackData {
+    std::function<void()> task;
+};
+
+bool cef_queue_task_callback(std::function<void()> task) {
+    auto callback = [](Napi::Env env, Napi::Function jsCallback, CefCallbackData* data) {
+        data->task();
+        delete data;
+    };
+    if (!cef_queue_task_thread) {
+        blog(LOG_ERROR, "cef_queue_task_thread is null");
+        return false;
+    }
+    auto *data = new CefCallbackData {
+        .task = task
+    };
+    cef_queue_task_thread.NonBlockingCall(data, callback);
+    return true;
+}
 
 Napi::Value setObsPath(const Napi::CallbackInfo &info) {
     std::string obsPath = info[0].As<Napi::String>();
@@ -46,6 +67,17 @@ Napi::Value startup(const Napi::CallbackInfo &info) {
 #endif
     settings = new Settings(info[0].As<Napi::Object>());
     studio = new Studio(settings);
+
+    // set cef callback
+    cef_queue_task_thread = Napi::ThreadSafeFunction::New(
+            info.Env(),
+            Napi::Function::New(info.Env(), [](const Napi::CallbackInfo &info) {}),
+            "cef_queue_task_thread",
+            0,
+            1
+    );
+    Studio::setCefQueueTaskCallback(cef_queue_task_callback);
+
     TRY_METHOD(studio->startup())
     return info.Env().Undefined();
 }
@@ -57,6 +89,7 @@ Napi::Value shutdown(const Napi::CallbackInfo &info) {
 #endif
     delete studio;
     delete settings;
+    cef_queue_task_thread.Release();
     return info.Env().Undefined();
 }
 
@@ -75,19 +108,19 @@ Napi::Value removeScene(const Napi::CallbackInfo &info) {
 Napi::Value addSource(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string sourceId = info[1].As<Napi::String>();
-    auto s = info[2].As<Napi::Object>();
-    TRY_METHOD(studio->addSource(sceneId, sourceId, s))
+    auto settings = info[2].As<Napi::Object>();
+    TRY_METHOD(studio->addSource(sceneId, sourceId, settings))
     return info.Env().Undefined();
 }
 
 Napi::Value updateSource(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string sourceId = info[1].As<Napi::String>();
-    auto s = info[2].As<Napi::Object>();
+    auto settings = info[2].As<Napi::Object>();
 
     Source *source;
     TRY_METHOD(source = studio->findSource(sceneId, sourceId))
-    TRY_METHOD(source->update(s))
+    TRY_METHOD(source->update(settings))
     return info.Env().Undefined();
 }
 

@@ -6,8 +6,8 @@
 #include <string>
 
 enum SourceType {
-    Live = 0,
-    Media = 1,
+    SOURCE_TYPE_LIVE = 0,
+    SOURCE_TYPE_MEDIA = 1,
 };
 
 class Source {

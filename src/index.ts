@@ -95,7 +95,6 @@ declare namespace obs {
 
     export interface Audio {
         volume: number;
-        monitor: boolean;
         mode: AudioMode;
     }
 
@@ -145,7 +144,7 @@ declare namespace obs {
         startup(settings: Settings): void;
         shutdown(): void;
         addScene(sceneId: string): string;
-        removeSource(sceneId: string): void;
+        removeScene(sceneId: string): void;
         addSource(sceneId: string, sourceId: string, settings: SourceSettings): void;
         getSource(sceneId: string, sourceId: string): Source;
         updateSource(sceneId: string, sourceId: string, settings: Partial<SourceSettings>): void;
