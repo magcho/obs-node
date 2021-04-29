@@ -18,7 +18,7 @@ Scene::~Scene() {
         obs_scene_release(obs_scene);
     }
     if (obs_output_scene) {
-        obs_scene_release(obs_scene);
+        obs_scene_release(obs_output_scene);
     }
 }
 

@@ -19,12 +19,17 @@ public:
     static std::string getObsPluginDataPath();
     static std::string getFontPath();
 
-    Studio(Settings *settings);
-    ~Studio();
+    explicit Studio(Settings *settings);
 
     void startup();
 
     void shutdown();
+
+    void addOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings);
+
+    void updateOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings);
+
+    void removeOutput(const std::string &outputId);
 
     void addScene(std::string &sceneId);
 
@@ -72,5 +77,5 @@ private:
     std::map<std::string, Dsk *> dsks;
     std::map<std::string, Overlay *> overlays;
     Scene *currentScene;
-    std::vector<Output *> outputs;
+    std::map<std::string, Output *> outputs;
 };

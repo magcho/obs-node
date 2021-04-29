@@ -14,15 +14,6 @@ Studio::Studio(Settings *settings) :
           currentScene(nullptr),
           outputs(),
           overlays() {
-    for (auto o : settings->outputs) {
-        outputs.push_back(new Output(o));
-    }
-}
-
-Studio::~Studio() {
-    for (auto output : outputs) {
-        delete output;
-    }
 }
 
 void Studio::startup() {
@@ -106,7 +97,7 @@ void Studio::startup() {
         obs_post_load_modules();
 
         for (auto output : outputs) {
-            output->start(obs_get_video(), obs_get_audio());
+            output.second->start(obs_get_video(), obs_get_audio());
         }
 
         restore();
@@ -119,12 +110,43 @@ void Studio::startup() {
 
 void Studio::shutdown() {
     for (auto output : outputs) {
-        output->stop();
+        output.second->stop();
+        delete output.second;
     }
+    outputs.clear();
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
     }
+}
+
+void Studio::addOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings) {
+    if (outputs.find(outputId) != outputs.end()) {
+        throw std::logic_error("Output: " + outputId + " already existed");
+    }
+    auto output = new Output(settings);
+    output->start(obs_get_video(), obs_get_audio());
+    this->outputs[outputId] = output;
+}
+
+void Studio::updateOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings) {
+    if (outputs.find(outputId) == outputs.end()) {
+        throw std::logic_error("Can't find output: " + outputId);
+    }
+    if (!outputs[outputId]->getSettings()->equals(settings)) {
+        removeOutput(outputId);
+        addOutput(outputId, settings);
+    }
+}
+
+void Studio::removeOutput(const std::string &outputId) {
+    if (outputs.find(outputId) == outputs.end()) {
+        throw std::logic_error("Can't find output: " + outputId);
+    }
+    auto output = outputs[outputId];
+    output->stop();
+    delete output;
+    outputs.erase(outputId);
 }
 
 void Studio::addScene(std::string &sceneId) {

@@ -153,6 +153,26 @@ Napi::Value switchToScene(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
 }
 
+Napi::Value addOutput(const Napi::CallbackInfo &info) {
+    std::string id = info[0].As<Napi::String>();
+    auto settings = std::make_shared<OutputSettings>(info[1].As<Napi::Object>());
+    TRY_METHOD(studio->addOutput(id, settings))
+    return info.Env().Undefined();
+}
+
+Napi::Value updateOutput(const Napi::CallbackInfo &info) {
+    std::string id = info[0].As<Napi::String>();
+    auto settings =  std::make_shared<OutputSettings>(info[1].As<Napi::Object>());
+    TRY_METHOD(studio->updateOutput(id, settings))
+    return info.Env().Undefined();
+}
+
+Napi::Value removeOutput(const Napi::CallbackInfo &info) {
+    std::string id = info[0].As<Napi::String>();
+    TRY_METHOD(studio->removeOutput(id));
+    return info.Env().Undefined();
+}
+
 Napi::Value createDisplay(const Napi::CallbackInfo &info) {
     std::string displayName = info[0].As<Napi::String>();
     void *parentHandle = info[1].As<Napi::Buffer<void *>>().Data();
@@ -322,6 +342,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "getSource"), Napi::Function::New(env, getSource));
     exports.Set(Napi::String::New(env, "updateSource"), Napi::Function::New(env, updateSource));
     exports.Set(Napi::String::New(env, "switchToScene"), Napi::Function::New(env, switchToScene));
+    exports.Set(Napi::String::New(env, "addOutput"), Napi::Function::New(env, addOutput));
+    exports.Set(Napi::String::New(env, "updateOutput"), Napi::Function::New(env, updateOutput));
+    exports.Set(Napi::String::New(env, "removeOutput"), Napi::Function::New(env, removeOutput));
     exports.Set(Napi::String::New(env, "createDisplay"), Napi::Function::New(env, createDisplay));
     exports.Set(Napi::String::New(env, "destroyDisplay"), Napi::Function::New(env, destroyDisplay));
     exports.Set(Napi::String::New(env, "moveDisplay"), Napi::Function::New(env, moveDisplay));
