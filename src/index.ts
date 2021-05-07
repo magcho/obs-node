@@ -52,8 +52,7 @@ declare namespace obs {
     }
 
     export interface OutputSettings {
-        server: string;
-        key: string;
+        url: string;
         hardwareEnable: boolean;
         width: number;
         height: number;
@@ -70,7 +69,6 @@ declare namespace obs {
     export interface Settings {
         video: VideoSettings;
         audio: AudioSettings;
-        outputs?: OutputSettings[];
     }
 
     export interface SourceSettings {
@@ -85,7 +83,7 @@ declare namespace obs {
         asyncUnbuffered?: boolean;
         bufferingMb?: number;
         reconnectDelaySec?: number;
-        output?: OutputSettings;
+        output?: OutputSettings | null;
     }
 
     export type Source = {
@@ -149,10 +147,12 @@ declare namespace obs {
         getSource(sceneId: string, sourceId: string): Source;
         updateSource(sceneId: string, sourceId: string, settings: Partial<SourceSettings>): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
+        addOutput(outputId: string, settings: OutputSettings);
+        updateOutput(outputId: string, settings: OutputSettings);
+        removeOutput(outputId: string);
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
         destroyDisplay(name: string): void;
         moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
-        addDSK(id: string, position: Position, url: string, left: number, top: number, width: number, height: number): void;
         addVolmeterCallback(callback: VolmeterCallback): void;
         getAudio(): Audio;
         updateAudio(audio: Partial<Audio>): void;

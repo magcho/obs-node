@@ -33,8 +33,6 @@ SET(OBS_NODE_SOURCES
     src/cpp/scene.cpp
     src/cpp/display.h
     src/cpp/display.cpp
-    src/cpp/dsk.h
-    src/cpp/dsk.cpp
     src/cpp/platform/platform.h
     src/cpp/callback.h
     src/cpp/callback.cpp
