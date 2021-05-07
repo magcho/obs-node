@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <napi.h>
 
 struct VideoSettings {
@@ -22,10 +23,9 @@ class OutputSettings {
 
 public:
     explicit OutputSettings(const Napi::Object& outputSettings);
-    bool equals(OutputSettings *settings);
+    bool equals(const std::shared_ptr<OutputSettings> &settings);
 
-    std::string server;
-    std::string key;
+    std::string url;
     bool hardwareEnable;
     int width;
     int height;
@@ -47,5 +47,4 @@ public:
     std::string locale;
     VideoSettings *video;
     AudioSettings *audio;
-    std::vector<OutputSettings*> outputs;
 };

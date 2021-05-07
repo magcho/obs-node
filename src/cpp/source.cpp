@@ -132,8 +132,8 @@ Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene,
     volume = NapiUtil::getIntOptional(settings, "volume").value_or(0);
     audioLock = NapiUtil::getBooleanOptional(settings, "audioLock").value_or(false);
     monitor = NapiUtil::getBooleanOptional(settings, "monitor").value_or(false);
-    if (!settings.Get("output").IsUndefined()) {
-        output = new OutputSettings(settings.Get("output").As<Napi::Object>());
+    if (!settings.Get("output").IsUndefined() && !settings.Get("output").IsNull()) {
+        output = std::make_shared<OutputSettings>(settings.Get("output").As<Napi::Object>());
     }
     // start source
     start();
@@ -226,7 +226,7 @@ void Source::update(const Napi::Object &settings) {
                 output = nullptr;
             }
         } else {
-            auto value = new OutputSettings(settings.Get("output").As<Napi::Object>());
+            auto value = std::make_shared<OutputSettings>(settings.Get("output").As<Napi::Object>());
             if (!output || !output->equals(value)) {
                 output = value;
                 restartOutput = true;

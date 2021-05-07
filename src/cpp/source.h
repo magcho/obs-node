@@ -68,7 +68,7 @@ private:
     int volume;
     bool audioLock;
     bool monitor;
-    OutputSettings *output;
+    std::shared_ptr<OutputSettings> output;
 
     obs_scene_t *obs_scene;
     obs_source_t *obs_source;

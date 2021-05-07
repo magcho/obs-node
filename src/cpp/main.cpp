@@ -133,23 +133,31 @@ Napi::Object getSource(const Napi::CallbackInfo &info) {
     return source->toNapiObject(info.Env());
 }
 
-Napi::Value addDSK(const Napi::CallbackInfo &info) {
-    std::string id = info[0].As<Napi::String>();
-    std::string position = info[1].As<Napi::String>();
-    std::string url = info[2].As<Napi::String>();
-    int left = info[3].As<Napi::Number>();
-    int top = info[4].As<Napi::Number>();
-    int width = info[5].As<Napi::Number>();
-    int height = info[6].As<Napi::Number>();
-    TRY_METHOD(studio->addDSK(id, position, url, left, top, width, height))
-    return info.Env().Undefined();
-}
-
 Napi::Value switchToScene(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string transitionType = info[1].As<Napi::String>();
     int transitionMs = info[2].As<Napi::Number>();
     TRY_METHOD(studio->switchToScene(sceneId, transitionType, transitionMs))
+    return info.Env().Undefined();
+}
+
+Napi::Value addOutput(const Napi::CallbackInfo &info) {
+    std::string id = info[0].As<Napi::String>();
+    auto settings = std::make_shared<OutputSettings>(info[1].As<Napi::Object>());
+    TRY_METHOD(studio->addOutput(id, settings))
+    return info.Env().Undefined();
+}
+
+Napi::Value updateOutput(const Napi::CallbackInfo &info) {
+    std::string id = info[0].As<Napi::String>();
+    auto settings =  std::make_shared<OutputSettings>(info[1].As<Napi::Object>());
+    TRY_METHOD(studio->updateOutput(id, settings))
+    return info.Env().Undefined();
+}
+
+Napi::Value removeOutput(const Napi::CallbackInfo &info) {
+    std::string id = info[0].As<Napi::String>();
+    TRY_METHOD(studio->removeOutput(id));
     return info.Env().Undefined();
 }
 
@@ -322,10 +330,12 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "getSource"), Napi::Function::New(env, getSource));
     exports.Set(Napi::String::New(env, "updateSource"), Napi::Function::New(env, updateSource));
     exports.Set(Napi::String::New(env, "switchToScene"), Napi::Function::New(env, switchToScene));
+    exports.Set(Napi::String::New(env, "addOutput"), Napi::Function::New(env, addOutput));
+    exports.Set(Napi::String::New(env, "updateOutput"), Napi::Function::New(env, updateOutput));
+    exports.Set(Napi::String::New(env, "removeOutput"), Napi::Function::New(env, removeOutput));
     exports.Set(Napi::String::New(env, "createDisplay"), Napi::Function::New(env, createDisplay));
     exports.Set(Napi::String::New(env, "destroyDisplay"), Napi::Function::New(env, destroyDisplay));
     exports.Set(Napi::String::New(env, "moveDisplay"), Napi::Function::New(env, moveDisplay));
-    exports.Set(Napi::String::New(env, "addDSK"), Napi::Function::New(env, addDSK));
     exports.Set(Napi::String::New(env, "addVolmeterCallback"), Napi::Function::New(env, addVolmeterCallback));
     exports.Set(Napi::String::New(env, "getAudio"), Napi::Function::New(env, getAudio));
     exports.Set(Napi::String::New(env, "updateAudio"), Napi::Function::New(env, updateAudio));

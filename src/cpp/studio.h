@@ -19,12 +19,17 @@ public:
     static std::string getObsPluginDataPath();
     static std::string getFontPath();
 
-    Studio(Settings *settings);
-    ~Studio();
+    explicit Studio(Settings *settings);
 
     void startup();
 
     void shutdown();
+
+    void addOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings);
+
+    void updateOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings);
+
+    void removeOutput(const std::string &outputId);
 
     void addScene(std::string &sceneId);
 
@@ -33,8 +38,6 @@ public:
     void addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings);
 
     Source *findSource(std::string &sceneId, std::string &sourceId);
-
-    void addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height);
 
     void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs);
 
@@ -69,8 +72,7 @@ private:
     std::map<std::string, Scene *> scenes;
     std::map<std::string, obs_source_t *> transitions;
     std::map<std::string, Display *> displays;
-    std::map<std::string, Dsk *> dsks;
     std::map<std::string, Overlay *> overlays;
     Scene *currentScene;
-    std::vector<Output *> outputs;
+    std::map<std::string, Output *> outputs;
 };
