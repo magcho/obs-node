@@ -52,18 +52,6 @@ const outputs: Output[] = [
         },
     ];
 
-const dsks = [
-    {
-        id: "dsk1",
-        position: "top-left",
-        url: "",
-        left: 100,
-        top: 100,
-        width: 256,
-        height: 256,
-    }
-];
-
 const overlays: Overlay[] = [
     as<CG>({
         id: 'cg1',
@@ -141,10 +129,6 @@ sources.forEach(s => {
 });
 
 outputs.forEach(o => obs.addOutput(o.id, o.settings));
-
-dsks.forEach(dsk => {
-   obs.addDSK(dsk.id, dsk.position as obs.Position, dsk.url, dsk.left, dsk.top, dsk.width, dsk.height);
-});
 
 overlays.forEach(overlay => obs.addOverlay(overlay));
 

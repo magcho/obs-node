@@ -2,7 +2,6 @@
 
 #include "settings.h"
 #include "source.h"
-#include "dsk.h"
 #include <string>
 #include <map>
 #include <obs.h>
@@ -18,7 +17,7 @@ public:
 
     Source *findSource(std::string &sourceId);
 
-    obs_scene_t *getObsOutputScene(std::map<std::string, Dsk*> &dsks);
+    obs_scene_t *getScene();
 
 private:
     static obs_scene_t *createObsScene(std::string &sceneId);
@@ -27,6 +26,5 @@ private:
     int index;
     Settings *settings;
     obs_scene_t *obs_scene;
-    obs_scene_t *obs_output_scene;
     std::map<std::string, Source *> sources;
 };

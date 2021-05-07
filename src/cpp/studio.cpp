@@ -160,6 +160,9 @@ void Studio::removeScene(std::string &sceneId) {
     std::unique_lock<std::mutex> lock(scenes_mtx);
     auto scene = scenes[sceneId];
     scenes.erase(sceneId);
+    if (currentScene == scene) {
+        currentScene = nullptr;
+    }
     delete scene;
 }
 
@@ -169,15 +172,6 @@ void Studio::addSource(std::string &sceneId, std::string &sourceId, const Napi::
 
 Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
     return findScene(sceneId)->findSource(sourceId);
-}
-
-void Studio::addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height) {
-    auto found = dsks.find(id);
-    if (found != dsks.end()) {
-        throw std::logic_error("Dsk " + id + " already existed");
-    }
-    auto *dsk = new Dsk(id, position, url, left, top, width, height);
-    dsks[id] = dsk;
 }
 
 void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs) {
@@ -200,7 +194,7 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
 
     obs_source_t *transition = transitions[transitionType];
     if (currentScene) {
-        obs_transition_set(transition, obs_scene_get_source(currentScene->getObsOutputScene(dsks)));
+        obs_transition_set(transition, obs_scene_get_source(currentScene->getScene()));
     }
 
     obs_set_output_source(0, transition);
@@ -209,7 +203,7 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
             transition,
             OBS_TRANSITION_MODE_AUTO,
             transitionMs,
-            obs_scene_get_source(next->getObsOutputScene(dsks))
+            obs_scene_get_source(next->getScene())
     );
 
     if (!ret) {

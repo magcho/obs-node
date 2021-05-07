@@ -153,7 +153,6 @@ declare namespace obs {
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
         destroyDisplay(name: string): void;
         moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
-        addDSK(id: string, position: Position, url: string, left: number, top: number, width: number, height: number): void;
         addVolmeterCallback(callback: VolmeterCallback): void;
         getAudio(): Audio;
         updateAudio(audio: Partial<Audio>): void;
