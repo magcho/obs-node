@@ -23,11 +23,11 @@ void Scene::addSource(std::string &sourceId, const Napi::Object &settings) {
 }
 
 obs_scene_t *Scene::createObsScene(std::string &sceneId) {
-    obs_scene_t *scene = obs_scene_create(sceneId.c_str());
-    if (scene == nullptr) {
+    obs_scene_t *obs_scene = obs_scene_create(sceneId.c_str());
+    if (obs_scene == nullptr) {
         throw std::runtime_error("Failed to create obs scene " + sceneId);
     }
-    return scene;
+    return obs_scene;
 }
 
 Source *Scene::findSource(std::string &sourceId) {
