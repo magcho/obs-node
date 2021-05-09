@@ -92,6 +92,11 @@ void SourceTranscoder::stop() {
     signal_handler_t *handler = obs_source_get_signal_handler(source->obs_source);
     signal_handler_disconnect(handler, "media_get_frame", source_media_get_frame_callback, this);
 
+    // output stop
+    output->stop();
+    delete output;
+    output = nullptr;
+
     // video stop
     video_stop = true;
     video_thread.join();
@@ -119,16 +124,15 @@ void SourceTranscoder::stop() {
     audio_time = 0;
     last_audio_time = 0;
     timing_adjust = 0;
-
-    // output stop
-    output->stop();
-    delete output;
-    output = nullptr;
 }
 
 void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *data) {
     auto transcoder = (SourceTranscoder *) param;
     auto *frame = (obs_source_frame *) calldata_ptr(data, "frame");
+
+    if (frame->format == VIDEO_FORMAT_NONE) {
+        return;
+    }
 
     // create video scaler after first frame is received
     if (!transcoder->video_scaler || transcoder->video_scale_changed(frame)) {
