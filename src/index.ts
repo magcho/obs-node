@@ -146,6 +146,7 @@ declare namespace obs {
         addSource(sceneId: string, sourceId: string, settings: SourceSettings): void;
         getSource(sceneId: string, sourceId: string): Source;
         updateSource(sceneId: string, sourceId: string, settings: Partial<SourceSettings>): void;
+        restartSource(sceneId: string, sourceId: string): void;
         switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
         addOutput(outputId: string, settings: OutputSettings);
         updateOutput(outputId: string, settings: OutputSettings);

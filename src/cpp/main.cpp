@@ -133,6 +133,13 @@ Napi::Object getSource(const Napi::CallbackInfo &info) {
     return source->toNapiObject(info.Env());
 }
 
+Napi::Value restartSource(const Napi::CallbackInfo &info) {
+    std::string sceneId = info[0].As<Napi::String>();
+    std::string sourceId = info[1].As<Napi::String>();
+    TRY_METHOD(studio->findSource(sceneId, sourceId)->restart())
+    return info.Env().Undefined();
+}
+
 Napi::Value switchToScene(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string transitionType = info[1].As<Napi::String>();
@@ -329,6 +336,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "addSource"), Napi::Function::New(env, addSource));
     exports.Set(Napi::String::New(env, "getSource"), Napi::Function::New(env, getSource));
     exports.Set(Napi::String::New(env, "updateSource"), Napi::Function::New(env, updateSource));
+    exports.Set(Napi::String::New(env, "restartSource"), Napi::Function::New(env, restartSource));
     exports.Set(Napi::String::New(env, "switchToScene"), Napi::Function::New(env, switchToScene));
     exports.Set(Napi::String::New(env, "addOutput"), Napi::Function::New(env, addOutput));
     exports.Set(Napi::String::New(env, "updateOutput"), Napi::Function::New(env, updateOutput));

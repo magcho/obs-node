@@ -27,6 +27,8 @@ public:
 
     void update(const Napi::Object &settings);
 
+    void restart();
+
     void screenshot(std::function<void(uint8_t*, int)> callback);
 
     Napi::Object toNapiObject(Napi::Env env);

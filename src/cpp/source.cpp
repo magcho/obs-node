@@ -378,6 +378,11 @@ void Source::stopOutput() {
     }
 }
 
+void Source::restart() {
+    stop();
+    start();
+}
+
 void Source::play() {
     if (obs_source) {
         obs_source_media_play_pause(obs_source, false);

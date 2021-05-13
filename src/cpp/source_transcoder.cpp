@@ -3,9 +3,9 @@
 #include <media-io/video-frame.h>
 #include <util/platform.h>
 
-#define VIDEO_BUFFER_SIZE 200000000 // nanoseconds
+#define VIDEO_BUFFER_SIZE 400000000 // nanoseconds
 #define VIDEO_JUMP_THRESHOLD 2000000000 // nanoseconds
-#define AUDIO_BUFFER_SIZE 500000000 // nanoseconds
+#define AUDIO_BUFFER_SIZE 800000000 // nanoseconds
 #define AUDIO_SMOOTH_THRESHOLD 70000000 // nanoseconds
 #define AUDIO_TIMESTAMP_BUFFER_SIZE 200000000 // nanoseconds，a litter smaller than AUDIO_BUFFER_SIZE - VIDEO_BUFFER_SIZE
 
@@ -148,7 +148,7 @@ void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *
     transcoder->frame_buf_mutex.lock();
 
     if (transcoder->frame_buf.size / sizeof(void *) >= max_buffer_frames) {
-        blog(LOG_DEBUG, "[%s] exceed max video buffer: %llu", transcoder->source->id.c_str(), max_buffer_frames);
+        blog(LOG_INFO, "[%s] exceed max video buffer: %llu", transcoder->source->id.c_str(), max_buffer_frames);
         transcoder->reset_video();
     }
 
@@ -224,7 +224,7 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
     // if audio time output range, reset audio
     if (!transcoder->audio_time || current_audio_time < transcoder->audio_time ||
         current_audio_time - transcoder->audio_time > AUDIO_BUFFER_SIZE) {
-        blog(LOG_DEBUG, "[%s] audio buffer reset, audio time: %llu, current audio time: %llu",
+        blog(LOG_INFO, "[%s] audio buffer reset, audio time: %llu, current audio time: %llu",
              transcoder->source->id.c_str(), transcoder->audio_time, current_audio_time);
         transcoder->reset_audio();
         transcoder->audio_time = current_audio_time;
@@ -401,7 +401,7 @@ obs_source_frame *SourceTranscoder::get_closest_frame(uint64_t video_time) {
             break;
         }
     }
-    last_frame_ts = frame_ts;
+    last_frame_ts = frame_buf.size == sizeof(void *) ? frame->timestamp : frame_ts;
     return frame;
 }
 
