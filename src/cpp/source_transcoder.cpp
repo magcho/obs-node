@@ -415,8 +415,7 @@ void SourceTranscoder::reset_video() {
 }
 
 void SourceTranscoder::reset_audio() {
-    size_t channels = audio_output_get_channels(audio);
-    for (size_t ch = 0; ch < channels; ch++) {
+    for (size_t ch = 0; ch < MAX_AUDIO_CHANNELS; ch++) {
         circlebuf_pop_front(&audio_buf[ch], nullptr, audio_buf[ch].size);
     }
     audio_time = 0;
