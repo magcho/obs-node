@@ -33,6 +33,10 @@ public:
 
     Napi::Object toNapiObject(Napi::Env env);
 
+    uint64_t getTimestamp();
+
+    uint64_t getServerTimestamp();
+
 private:
     static void volmeter_callback(
             void *param,

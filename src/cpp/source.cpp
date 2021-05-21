@@ -178,7 +178,7 @@ void Source::update(const Napi::Object &settings) {
         }
     }
     if (!NapiUtil::isUndefined(settings, "asyncUnbuffered")) {
-        auto value = NapiUtil::getInt(settings, "asyncUnbuffered");
+        auto value = NapiUtil::getBoolean(settings, "asyncUnbuffered");
         if (asyncUnbuffered != value) {
             asyncUnbuffered = value;
             restart = true;
@@ -266,6 +266,16 @@ Napi::Object Source::toNapiObject(Napi::Env env) {
     result.Set("monitor", monitor);
     result.Set("audioLock", audioLock);
     return result;
+}
+
+uint64_t Source::getTimestamp() {
+    return obs_source_get_frame_timestamp(obs_source);
+}
+
+uint64_t Source::getServerTimestamp() {
+    uint64_t server_timestamp = obs_source_get_server_timestamp(obs_source);
+    uint64_t external_timestamp = obs_source_get_external_timestamp(obs_source);
+    return server_timestamp > 0 ? server_timestamp : external_timestamp;
 }
 
 void Source::start() {

@@ -145,9 +145,10 @@ declare namespace obs {
         removeScene(sceneId: string): void;
         addSource(sceneId: string, sourceId: string, settings: SourceSettings): void;
         getSource(sceneId: string, sourceId: string): Source;
+        getSourceServerTimestamp(sceneId: string, sourceId: string): string;
         updateSource(sceneId: string, sourceId: string, settings: Partial<SourceSettings>): void;
         restartSource(sceneId: string, sourceId: string): void;
-        switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
+        switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number, timestamp?: string): void;
         addOutput(outputId: string, settings: OutputSettings);
         updateOutput(outputId: string, settings: OutputSettings);
         removeOutput(outputId: string);

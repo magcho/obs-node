@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-OBS_STUDIO_VERSION=26.0.2.16
+OBS_STUDIO_VERSION=26.0.2.17
 MAXOS_DEPS_VERSION=2020-08-30
 CEF_VERSION=4280
 
@@ -68,6 +68,10 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
     fi
     popd
   fi
+
+  # Download CEF
+    wget https://cdn-fastly.obsproject.com/downloads/cef_binary_4280_linux64.tar.bz2
+    tar -xjf ./cef_binary_4280_linux64.tar.bz2
 
   # Compile obs-studio
   echo "Compile obs-studio"

@@ -7,6 +7,9 @@
 #include "overlay.h"
 #include <map>
 #include <obs.h>
+#include "utils.h"
+
+struct DelaySwitchData;
 
 class Studio {
 
@@ -39,7 +42,7 @@ public:
 
     Source *findSource(std::string &sceneId, std::string &sourceId);
 
-    void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs);
+    void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp);
 
     void createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId);
 
@@ -63,7 +66,9 @@ public:
 
 private:
     static void loadModule(const std::string &binPath, const std::string &dataPath);
+    static void delay_switch_callback(void *param);
     Scene *findScene(std::string &sceneId);
+    uint64_t getSourceTimestamp(std::string &sceneId);
 
     static std::string obsPath;
     static std::string fontPath;
@@ -75,4 +80,8 @@ private:
     std::map<std::string, Overlay *> overlays;
     Scene *currentScene;
     std::map<std::string, Output *> outputs;
+
+    volatile bool stop;
+    std::thread delay_switch_thread;
+    queue<DelaySwitchData *> delay_switch_queue;
 };

@@ -19,6 +19,8 @@ public:
 
     obs_scene_t *getScene();
 
+    std::map<std::string, Source *> &getSources();
+
 private:
     static obs_scene_t *createObsScene(std::string &sceneId);
 

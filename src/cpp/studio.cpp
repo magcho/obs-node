@@ -3,6 +3,16 @@
 #include <filesystem>
 #include <mutex>
 #include <obs.h>
+#include <util/platform.h>
+
+struct DelaySwitchData {
+    std::string sceneId;
+    std::string transitionType;
+    int transitionMs;
+    uint64_t timestamp;
+};
+
+#define MAX_SWITCH_DELAY 2000000000
 
 std::mutex scenes_mtx;
 std::string Studio::obsPath;
@@ -13,6 +23,9 @@ Studio::Studio(Settings *settings) :
           settings(settings),
           currentScene(nullptr),
           outputs(),
+          delay_switch_thread(),
+          delay_switch_queue(),
+          stop(false),
           overlays() {
 }
 
@@ -84,6 +97,7 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "\\obs-x264.dll", getObsPluginDataPath() + "\\obs-x264");
         loadModule(getObsPluginPath() + "\\obs-outputs.dll", getObsPluginDataPath() + "\\obs-outputs");
         loadModule(getObsPluginPath() + "\\text-freetype2.dll", getObsPluginDataPath() + "\\text-freetype2");
+        loadModule(getObsPluginPath() + "\\obs-browser.dll", getObsPluginDataPath() + "\\obs-browser");
 #else
         loadModule(getObsPluginPath() + "/image-source.so", getObsPluginDataPath() + "/image-source");
         loadModule(getObsPluginPath() + "/obs-ffmpeg.so", getObsPluginDataPath() + "/obs-ffmpeg");
@@ -92,6 +106,7 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "/obs-x264.so", getObsPluginDataPath() + "/obs-x264");
         loadModule(getObsPluginPath() + "/obs-outputs.so", getObsPluginDataPath() + "/obs-outputs");
         loadModule(getObsPluginPath() + "/text-freetype2.so", getObsPluginDataPath() + "/text-freetype2");
+        loadModule(getObsPluginPath() + "/obs-browser.so", getObsPluginDataPath() + "/obs-browser");
 #endif
 
         obs_post_load_modules();
@@ -101,6 +116,9 @@ void Studio::startup() {
         }
 
         restore();
+
+        //start switch thread
+        delay_switch_thread = std::thread(&Studio::delay_switch_callback, this);
 
     } catch (...) {
         restore();
@@ -114,6 +132,9 @@ void Studio::shutdown() {
         delete output.second;
     }
     outputs.clear();
+    stop = true;
+    delay_switch_thread.join();
+    stop = false;
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
@@ -167,15 +188,36 @@ void Studio::removeScene(std::string &sceneId) {
 }
 
 void Studio::addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
     findScene(sceneId)->addSource(sourceId, settings);
 }
 
 Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
     return findScene(sceneId)->findSource(sourceId);
 }
 
-void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs) {
-    Scene *next = findScene(sceneId);
+void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp) {
+    if (timestamp > 0) {
+        auto data = new DelaySwitchData{
+            .sceneId = sceneId,
+            .transitionType = transitionType,
+            .transitionMs = transitionMs,
+            .timestamp = timestamp,
+        };
+        delay_switch_queue.push(data);
+        return;
+    }
+
+    Scene *next;
+    {
+        std::unique_lock<std::mutex> lock(scenes_mtx);
+        next = findScene(sceneId);
+    }
+
+    if (!next) {
+        throw std::runtime_error("Can't find scene: " + sceneId);
+    }
 
     if (next == currentScene) {
         blog(LOG_INFO, "Same with current scene, no need to switch, skip.");
@@ -211,6 +253,21 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
     }
 
     currentScene = next;
+}
+
+void Studio::delay_switch_callback(void *param) {
+    auto *studio = (Studio *) param;
+    while (!studio->stop) {
+        DelaySwitchData * data = studio->delay_switch_queue.pop();
+        auto curTimestamp = studio->getSourceTimestamp(data->sceneId);
+        int64_t time_diff = data->timestamp - curTimestamp;
+        blog(LOG_INFO, "sync switch: client_ts = %lld server_ts = %lld time_diff = %lld",
+             data->timestamp, curTimestamp, time_diff);
+        if (curTimestamp && time_diff > 0 && time_diff < MAX_SWITCH_DELAY) {
+            os_sleepto_ns(os_gettime_ns() + time_diff);
+        }
+        studio->switchToScene(data->sceneId, data->transitionType, data->transitionMs, 0);
+    }
 }
 
 void Studio::loadModule(const std::string &binPath, const std::string &dataPath) {
@@ -362,4 +419,13 @@ std::string Studio::getObsPluginDataPath() {
 
 std::string Studio::getFontPath() {
     return fontPath;
+}
+
+uint64_t Studio::getSourceTimestamp(std::string &sceneId) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
+    Scene *next = findScene(sceneId);
+    if (!next || next->getSources().empty()) {
+        return 0;
+    }
+    return next->getSources().begin()->second->getTimestamp();
 }

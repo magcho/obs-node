@@ -41,3 +41,7 @@ Source *Scene::findSource(std::string &sourceId) {
 obs_scene_t *Scene::getScene() {
     return obs_scene;
 }
+
+std::map<std::string, Source *> &Scene::getSources() {
+    return sources;
+}

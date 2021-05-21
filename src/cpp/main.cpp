@@ -144,7 +144,8 @@ Napi::Value switchToScene(const Napi::CallbackInfo &info) {
     std::string sceneId = info[0].As<Napi::String>();
     std::string transitionType = info[1].As<Napi::String>();
     int transitionMs = info[2].As<Napi::Number>();
-    TRY_METHOD(studio->switchToScene(sceneId, transitionType, transitionMs))
+    uint64_t timestamp = info[3].IsUndefined() ? 0 : std::stoull((std::string)info[3].As<Napi::String>());
+    TRY_METHOD(studio->switchToScene(sceneId, transitionType, transitionMs, timestamp))
     return info.Env().Undefined();
 }
 
@@ -326,6 +327,14 @@ Napi::Value getOverlays(const Napi::CallbackInfo &info) {
     return result;
 }
 
+Napi::Value getSourceServerTimestamp(const Napi::CallbackInfo &info) {
+    std::string sceneId = info[0].As<Napi::String>();
+    std::string sourceId = info[1].As<Napi::String>();
+    Source *source;
+    TRY_METHOD(source = studio->findSource(sceneId, sourceId))
+    return Napi::String::New(info.Env(), std::to_string(source->getServerTimestamp()));
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "setObsPath"), Napi::Function::New(env, setObsPath));
     exports.Set(Napi::String::New(env, "setFontPath"), Napi::Function::New(env, setFontPath));
@@ -335,6 +344,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "removeScene"), Napi::Function::New(env, removeScene));
     exports.Set(Napi::String::New(env, "addSource"), Napi::Function::New(env, addSource));
     exports.Set(Napi::String::New(env, "getSource"), Napi::Function::New(env, getSource));
+    exports.Set(Napi::String::New(env, "getSourceServerTimestamp"), Napi::Function::New(env, getSourceServerTimestamp));
     exports.Set(Napi::String::New(env, "updateSource"), Napi::Function::New(env, updateSource));
     exports.Set(Napi::String::New(env, "restartSource"), Napi::Function::New(env, restartSource));
     exports.Set(Napi::String::New(env, "switchToScene"), Napi::Function::New(env, switchToScene));
