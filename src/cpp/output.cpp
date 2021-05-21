@@ -1,12 +1,16 @@
 #include "output.h"
 #include "studio.h"
 
-Output::Output(OutputSettings *settings) :
+Output::Output(const std::shared_ptr<OutputSettings> &settings) :
         settings(settings),
         video_encoder(nullptr),
         audio_encoder(nullptr),
         output_service(nullptr),
         output(nullptr) {
+}
+
+std::shared_ptr<OutputSettings> Output::getSettings() {
+    return settings;
 }
 
 void Output::start(video_t *video, audio_t *audio) {
@@ -56,7 +60,7 @@ void Output::start(video_t *video, audio_t *audio) {
     obs_encoder_set_audio(audio_encoder, audio);
 
     // output service
-    bool is_rtmp = settings->server.rfind("rtmp", 0) == 0;
+    bool is_rtmp = settings->url.find("rtmp", 0) == 0;
     if (is_rtmp) {
         output_service = obs_service_create("rtmp_common", "rtmp service", nullptr, nullptr);
     } else {
@@ -72,10 +76,19 @@ void Output::start(video_t *video, audio_t *audio) {
         throw std::runtime_error("Failed to create output settings.");
     }
 
-    obs_data_set_string(output_service_settings, "server", settings->server.c_str());
+    std::string server;
+    std::string key;
+    if (is_rtmp) {
+        auto index = settings->url.rfind('/');
+        server = settings->url.substr(0, index);
+        key = settings->url.substr(index + 1);
+    } else {
+        server = settings->url;
+    }
 
-    if (!settings->key.empty()) {
-        obs_data_set_string(output_service_settings, "key", settings->key.c_str());
+    obs_data_set_string(output_service_settings, "server", server.c_str());
+    if (!key.empty()) {
+        obs_data_set_string(output_service_settings, "key", key.c_str());
     }
 
     obs_service_update(output_service, output_service_settings);

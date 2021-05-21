@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-OBS_STUDIO_VERSION=26.0.2.14
+OBS_STUDIO_VERSION=26.0.2.17
 MAXOS_DEPS_VERSION=2020-08-30
+CEF_VERSION=4280
 
 BASE_DIR="$(pwd)"
 BUILD_DIR="${BASE_DIR}/build"
@@ -17,7 +18,7 @@ OBS_INSTALL_PREFIX="${OBS_STUDIO_BUILD_DIR}/obs-installed"
 PREBUILD_DIR="${BASE_DIR}/prebuild"
 
 BUILD_TYPE=$1
-if [[ $BUILD_TYPE != 'all' && $BUILD_TYPE != 'obs-studio' && $BUILD_TYPE != 'obs-node' ]]; then
+if [[ $BUILD_TYPE != 'all' && $BUILD_TYPE != 'cef' && $BUILD_TYPE != 'obs-studio' && $BUILD_TYPE != 'obs-node' ]]; then
   >&2 echo "The first argument should be 'all', 'obs-studio' or 'obs-node'"
   exit 1
 fi
@@ -29,6 +30,7 @@ if [[ $RELEASE_TYPE != 'Release' && $RELEASE_TYPE != 'Debug' ]]; then
 fi
 
 mkdir -p "${BUILD_DIR}" "${OBS_STUDIO_BUILD_DIR}" "${PREBUILD_DIR}"
+
 if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
   echo "Building obs-studio"
   # Clone obs studio
@@ -50,6 +52,21 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
       rm -f macos-deps-${MAXOS_DEPS_VERSION}.tar.gz
       popd
     fi
+  fi
+
+  # Download CEF
+  CEF_DIR=""
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    CEF_DIR="${OBS_STUDIO_BUILD_DIR}/cef/cef_binary_${CEF_VERSION}_linux64"
+    pushd "${OBS_STUDIO_BUILD_DIR}"
+    if [[ ! -d "${CEF_DIR}" ]]; then
+      if [[ ! -f "cef.tar.bz2" ]]; then
+        curl -kL https://cdn-fastly.obsproject.com/downloads/cef_binary_${CEF_VERSION}_linux64.tar.bz2 -f --retry 5 -o cef.tar.bz2
+      fi
+      mkdir -p cef
+      tar -xf cef.tar.bz2 -C cef
+    fi
+    popd
   fi
 
   # Download CEF
@@ -81,7 +98,8 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-studio' ]]; then
           -DDISABLE_PYTHON=ON \
           -DCMAKE_BUILD_TYPE="${RELEASE_TYPE}" \
           -DBUILD_BROWSER=ON \
-          -DCEF_ROOT_DIR="../../cef_binary_4280_linux64" \
+          -DUSE_UI_LOOP=ON \
+          -DCEF_ROOT_DIR="${CEF_DIR}" \
           ..
     cmake --build . --target install --config "${RELEASE_TYPE}" -- -j 4
   else

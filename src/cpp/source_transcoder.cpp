@@ -3,11 +3,11 @@
 #include <media-io/video-frame.h>
 #include <util/platform.h>
 
-#define VIDEO_RESET_THRESHOLD 1000000000
-#define VIDEO_SMOOTH_THRESHOLD 2000000
-#define AUDIO_RESET_THRESHOLD 2000000000
-#define AUDIO_SMOOTH_THRESHOLD 70000000
-#define AUDIO_MAX_TIMESTAMP_BUFFER 1000000000
+#define VIDEO_BUFFER_SIZE 400000000 // nanoseconds
+#define VIDEO_JUMP_THRESHOLD 2000000000 // nanoseconds
+#define AUDIO_BUFFER_SIZE 800000000 // nanoseconds
+#define AUDIO_SMOOTH_THRESHOLD 70000000 // nanoseconds
+#define AUDIO_TIMESTAMP_BUFFER_SIZE 200000000 // nanoseconds，a litter smaller than AUDIO_BUFFER_SIZE - VIDEO_BUFFER_SIZE
 
 struct ts_info {
     uint64_t start;
@@ -29,6 +29,7 @@ SourceTranscoder::SourceTranscoder() :
         last_frame_ts(0),
         video_stop(false),
         video_thread(),
+        last_video_scale(),
         audio(nullptr),
         audio_buf(),
         audio_buf_mutex(),
@@ -41,7 +42,7 @@ SourceTranscoder::SourceTranscoder() :
 
 void SourceTranscoder::start(Source *s) {
     source = s;
-    output = new Output(source->settings->output);
+    output = new Output(source->output);
 
     // video output
     obs_video_info ovi = {};
@@ -51,8 +52,8 @@ void SourceTranscoder::start(Source *s) {
     std::string videoOutputName = std::string("source_video_output_") + source->id;
     voi.name = videoOutputName.c_str();
     voi.format = VIDEO_FORMAT_BGRA;
-    voi.width = source->settings->output->width;
-    voi.height = source->settings->output->height;
+    voi.width = source->output->width;
+    voi.height = source->output->height;
     voi.fps_num = ovi.fps_num;
     voi.fps_den = ovi.fps_den;
     voi.cache_size = 16;
@@ -91,10 +92,12 @@ void SourceTranscoder::stop() {
     signal_handler_t *handler = obs_source_get_signal_handler(source->obs_source);
     signal_handler_disconnect(handler, "media_get_frame", source_media_get_frame_callback, this);
 
+    // output stop
     output->stop();
     delete output;
     output = nullptr;
 
+    // video stop
     video_stop = true;
     video_thread.join();
     video_stop = false;
@@ -103,8 +106,7 @@ void SourceTranscoder::stop() {
     video_output_close(video);
 
     if (video_scaler) {
-        video_scaler_destroy(video_scaler);
-        video_scaler = nullptr;
+        destroy_video_scaler();
     }
 
     reset_video();
@@ -128,25 +130,29 @@ void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *
     auto transcoder = (SourceTranscoder *) param;
     auto *frame = (obs_source_frame *) calldata_ptr(data, "frame");
 
+    if (frame->format == VIDEO_FORMAT_NONE) {
+        return;
+    }
+
     // create video scaler after first frame is received
-    if (!transcoder->video_scaler) {
+    if (!transcoder->video_scaler || transcoder->video_scale_changed(frame)) {
         transcoder->create_video_scaler(frame);
     }
 
     obs_source_frame *new_frame = obs_source_frame_create(frame->format, frame->width, frame->height);
     obs_source_frame_copy(new_frame, frame);
 
+    const struct video_output_info *voi = video_output_get_info(transcoder->video);
+    uint64_t max_buffer_frames = util_mul_div64(VIDEO_BUFFER_SIZE, voi->fps_num, voi->fps_den * 1000000000UL);
+
     transcoder->frame_buf_mutex.lock();
 
-    // clear frame buffer, only keep latest frame
-    if (transcoder->last_frame_ts &&
-        uint64_diff(transcoder->last_frame_ts, new_frame->timestamp) > VIDEO_RESET_THRESHOLD) {
+    if (transcoder->frame_buf.size / sizeof(void *) >= max_buffer_frames) {
+        blog(LOG_INFO, "[%s] exceed max video buffer: %llu", transcoder->source->id.c_str(), max_buffer_frames);
         transcoder->reset_video();
     }
 
     circlebuf_push_back(&transcoder->frame_buf, &new_frame, sizeof(void *));
-    transcoder->last_frame_ts = new_frame->timestamp;
-
     transcoder->frame_buf_mutex.unlock();
 }
 
@@ -217,7 +223,9 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
 
     // if audio time output range, reset audio
     if (!transcoder->audio_time || current_audio_time < transcoder->audio_time ||
-        current_audio_time - transcoder->audio_time > AUDIO_RESET_THRESHOLD) {
+        current_audio_time - transcoder->audio_time > AUDIO_BUFFER_SIZE) {
+        blog(LOG_INFO, "[%s] audio buffer reset, audio time: %llu, current audio time: %llu",
+             transcoder->source->id.c_str(), transcoder->audio_time, current_audio_time);
         transcoder->reset_audio();
         transcoder->audio_time = current_audio_time;
         transcoder->last_audio_time = current_audio_time;
@@ -225,6 +233,8 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
 
     uint64_t diff = uint64_diff(transcoder->last_audio_time, current_audio_time);
     if (diff > AUDIO_SMOOTH_THRESHOLD) {
+        blog(LOG_DEBUG, "[%s] audio buffer placement: %llu, audio time: %llu, current audio time: %llu",
+             transcoder->source->id.c_str(), diff, transcoder->audio_time, current_audio_time);
         size_t buf_placement = ns_to_audio_frames(rate, current_audio_time - transcoder->audio_time) * sizeof(float);
         for (size_t i = 0; i < channels; i++) {
             circlebuf_place(&transcoder->audio_buf[i], buf_placement, audio_data->data[i], audio_size);
@@ -270,6 +280,8 @@ bool SourceTranscoder::audio_output_callback(
         result = true;
     } else if (transcoder->audio_time >= ts.end) {
         // audio go forward, send mute
+        blog(LOG_DEBUG, "[%s] audio go forward, audio time: %llu, ts.end: %llu",
+             transcoder->source->id.c_str(), transcoder->audio_time, ts.end);
         result = true;
     } else {
         size_t buffer_size = transcoder->audio_buf[0].size;
@@ -301,11 +313,10 @@ bool SourceTranscoder::audio_output_callback(
                 result = true;
             }
         }
-        if (!result && (end_ts_in - ts.start >= AUDIO_MAX_TIMESTAMP_BUFFER)) {
-            // audio lagged too much, reset audio and send mute
-            transcoder->reset_audio();
-            result = true;
-        }
+    }
+
+    if (!result && (end_ts_in - ts.start >= AUDIO_TIMESTAMP_BUFFER_SIZE)) {
+        result = true;
     }
 
     if (result) {
@@ -318,7 +329,21 @@ bool SourceTranscoder::audio_output_callback(
     return result;
 }
 
+bool SourceTranscoder::video_scale_changed(obs_source_frame *frame) {
+    bool result = frame->format != last_video_scale.format
+        || frame->width != last_video_scale.width
+        || frame->height != last_video_scale.height
+        || frame->full_range != (last_video_scale.range == VIDEO_RANGE_FULL);
+    if (result) {
+        blog(LOG_INFO, "[%s] video scale changed", source->id.c_str());
+    }
+    return result;
+}
+
 void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
+    if (video_scaler) {
+        destroy_video_scaler();
+    }
     const struct video_output_info *voi = video_output_get_info(video);
     struct video_scale_info src = {
             .format = frame->format,
@@ -339,6 +364,12 @@ void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
     if (ret != VIDEO_SCALER_SUCCESS) {
         throw std::runtime_error("Failed to create video scaler.");
     }
+    last_video_scale = src;
+}
+
+void SourceTranscoder::destroy_video_scaler() {
+    video_scaler_destroy(video_scaler);
+    video_scaler = nullptr;
 }
 
 obs_source_frame *SourceTranscoder::get_closest_frame(uint64_t video_time) {
@@ -360,14 +391,17 @@ obs_source_frame *SourceTranscoder::get_closest_frame(uint64_t video_time) {
     uint64_t sys_offset = video_time - last_video_time;
     uint64_t frame_ts = sys_offset + last_frame_ts;
     while (frame_ts > frame->timestamp && frame_buf.size > sizeof(void *)) {
-        if (frame_ts - frame->timestamp < VIDEO_SMOOTH_THRESHOLD) {
-            break;
-        }
+        uint64_t ts = frame->timestamp;
         circlebuf_pop_front(&frame_buf, &frame, sizeof(void *));
         obs_source_frame_destroy(frame);
         circlebuf_peek_front(&frame_buf, &frame, sizeof(void *));
+        if (uint64_diff(ts, frame->timestamp) > VIDEO_JUMP_THRESHOLD) {
+            blog(LOG_DEBUG, "[%s] video jump: %llu -> %llu", source->id.c_str(), ts, frame->timestamp);
+            frame_ts = frame->timestamp;
+            break;
+        }
     }
-    last_frame_ts = frame_ts;
+    last_frame_ts = frame_buf.size == sizeof(void *) ? frame->timestamp : frame_ts;
     return frame;
 }
 
@@ -381,8 +415,7 @@ void SourceTranscoder::reset_video() {
 }
 
 void SourceTranscoder::reset_audio() {
-    size_t channels = audio_output_get_channels(audio);
-    for (size_t ch = 0; ch < channels; ch++) {
+    for (size_t ch = 0; ch < MAX_AUDIO_CHANNELS; ch++) {
         circlebuf_pop_front(&audio_buf[ch], nullptr, audio_buf[ch].size);
     }
     audio_time = 0;

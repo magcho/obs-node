@@ -2,6 +2,7 @@ import * as obs from '../src';
 import * as readline from 'readline';
 import {CG, CGImage, CGText, Overlay, SourceSettings} from "../src";
 import * as fs from "fs";
+import {OutputSettings} from "../dist";
 
 function as<T>(value: T): T {
     return value;
@@ -11,6 +12,11 @@ interface Source {
     sceneId: string;
     sourceId: string;
     settings: SourceSettings;
+}
+
+interface Output {
+    id: string;
+    settings: OutputSettings;
 }
 
 const settings: obs.Settings = {
@@ -25,35 +31,26 @@ const settings: obs.Settings = {
     audio: {
         sampleRate: 44100,
     },
-    outputs: [
-        {
-            server: 'rtmp://host.docker.internal/live',
-            key: 'output',
-            hardwareEnable: false,
-            width: 1280,
-            height: 720,
-            keyintSec: 1,
-            rateControl: 'CBR',
-            preset: 'ultrafast',
-            profile: 'main',
-            tune: 'zerolatency',
-            videoBitrateKbps: 1000,
-            audioBitrateKbps: 64
-        },
-    ],
 };
 
-const dsks = [
-    {
-        id: "dsk1",
-        position: "top-left",
-        url: "",
-        left: 100,
-        top: 100,
-        width: 256,
-        height: 256,
-    }
-];
+const outputs: Output[] = [
+        {
+            id: 'output1',
+            settings: {
+                url: 'rtmp://host.docker.internal/live/output',
+                hardwareEnable: false,
+                width: 640,
+                height: 360,
+                keyintSec: 5,
+                rateControl: 'CBR',
+                preset: 'ultrafast',
+                profile: 'main',
+                tune: 'zerolatency',
+                videoBitrateKbps: 1000,
+                audioBitrateKbps: 64,
+            }
+        },
+    ];
 
 const overlays: Overlay[] = [
     as<CG>({
@@ -91,25 +88,24 @@ const sources: Source[] = [
         sceneId: 'scene1',
         sourceId: 'source1',
         settings: {
-            type: 'MediaSource',
-            isFile: false,
+            name: 'source1',
+            type: 'live',
             url: 'rtmp://host.docker.internal/live/source1',
             hardwareDecoder: false,
-            startOnActive: false,
+            playOnActive: false,
         }
     },
     {
         sceneId: 'scene2',
         sourceId: 'source2',
         settings: {
-            type: 'MediaSource',
-            isFile: true,
-            url: 'test.mp4',
+            name: 'source1',
+            type: 'media',
+            url: 'clips/test.mp4',
             hardwareDecoder: false,
-            startOnActive: false,
+            playOnActive: false,
             output: {
-                server: 'rtmp://host.docker.internal/preview',
-                key: 'source2',
+                url: 'rtmp://host.docker.internal/preview/source2',
                 hardwareEnable: false,
                 width: 640,
                 height: 360,
@@ -132,9 +128,7 @@ sources.forEach(s => {
     obs.addSource(s.sceneId, s.sourceId, s.settings);
 });
 
-dsks.forEach(dsk => {
-   obs.addDSK(dsk.id, dsk.position as obs.Position, dsk.url, dsk.left, dsk.top, dsk.width, dsk.height);
-});
+outputs.forEach(o => obs.addOutput(o.id, o.settings));
 
 overlays.forEach(overlay => obs.addOverlay(overlay));
 

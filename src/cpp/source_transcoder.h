@@ -43,7 +43,9 @@ private:
 			bool muted
 	);
 
+	bool video_scale_changed(obs_source_frame *frame);
 	void create_video_scaler(obs_source_frame *frame);
+	void destroy_video_scaler();
 
 	obs_source_frame *get_closest_frame(uint64_t video_time);
 
@@ -62,6 +64,7 @@ private:
 	uint64_t last_frame_ts;
 	std::thread video_thread;
 	volatile bool video_stop;
+	video_scale_info last_video_scale;
 
 	audio_t *audio;
 	circlebuf audio_buf[MAX_AUDIO_CHANNELS];

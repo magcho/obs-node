@@ -1,26 +1,32 @@
 #include "studio.h"
+#include "utils.h"
 #include <filesystem>
 #include <mutex>
 #include <obs.h>
+#include <util/platform.h>
+
+struct DelaySwitchData {
+    std::string sceneId;
+    std::string transitionType;
+    int transitionMs;
+    uint64_t timestamp;
+};
+
+#define MAX_SWITCH_DELAY 2000000000
 
 std::mutex scenes_mtx;
 std::string Studio::obsPath;
 std::string Studio::fontPath;
+std::function<bool(std::function<void()>)> Studio::cef_queue_task_callback;
 
 Studio::Studio(Settings *settings) :
           settings(settings),
           currentScene(nullptr),
           outputs(),
+          delay_switch_thread(),
+          delay_switch_queue(),
+          stop(false),
           overlays() {
-    for (auto o : settings->outputs) {
-        outputs.push_back(new Output(o));
-    }
-}
-
-Studio::~Studio() {
-    for (auto output : outputs) {
-        delete output;
-    }
 }
 
 void Studio::startup() {
@@ -35,7 +41,7 @@ void Studio::startup() {
     };
 
     try {
-        obs_startup("en-US", nullptr, nullptr);
+        obs_startup(settings->locale.c_str(), nullptr, nullptr);
         if (!obs_initialized()) {
             throw std::runtime_error("Failed to startup obs studio.");
         }
@@ -76,6 +82,12 @@ void Studio::startup() {
             }
         }
 
+        // setup cef queue task callback
+        obs_data_t *settings = obs_data_create();
+        obs_data_set_int(settings, "cef_queue_task_callback", reinterpret_cast<uint64_t>(&Studio::cef_queue_task_callback));
+        obs_apply_private_data(settings);
+        obs_data_release(settings);
+
         // load modules
 #ifdef _WIN32
         loadModule(getObsPluginPath() + "\\image-source.dll", getObsPluginDataPath() + "\\image-source");
@@ -100,10 +112,13 @@ void Studio::startup() {
         obs_post_load_modules();
 
         for (auto output : outputs) {
-            output->start(obs_get_video(), obs_get_audio());
+            output.second->start(obs_get_video(), obs_get_audio());
         }
 
         restore();
+
+        //start switch thread
+        delay_switch_thread = std::thread(&Studio::delay_switch_callback, this);
 
     } catch (...) {
         restore();
@@ -113,12 +128,46 @@ void Studio::startup() {
 
 void Studio::shutdown() {
     for (auto output : outputs) {
-        output->stop();
+        output.second->stop();
+        delete output.second;
     }
+    outputs.clear();
+    stop = true;
+    delay_switch_thread.join();
+    stop = false;
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
     }
+}
+
+void Studio::addOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings) {
+    if (outputs.find(outputId) != outputs.end()) {
+        throw std::logic_error("Output: " + outputId + " already existed");
+    }
+    auto output = new Output(settings);
+    output->start(obs_get_video(), obs_get_audio());
+    this->outputs[outputId] = output;
+}
+
+void Studio::updateOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings) {
+    if (outputs.find(outputId) == outputs.end()) {
+        throw std::logic_error("Can't find output: " + outputId);
+    }
+    if (!outputs[outputId]->getSettings()->equals(settings)) {
+        removeOutput(outputId);
+        addOutput(outputId, settings);
+    }
+}
+
+void Studio::removeOutput(const std::string &outputId) {
+    if (outputs.find(outputId) == outputs.end()) {
+        throw std::logic_error("Can't find output: " + outputId);
+    }
+    auto output = outputs[outputId];
+    output->stop();
+    delete output;
+    outputs.erase(outputId);
 }
 
 void Studio::addScene(std::string &sceneId) {
@@ -128,25 +177,47 @@ void Studio::addScene(std::string &sceneId) {
     scenes[sceneId] = scene;
 }
 
-void Studio::addSource(std::string &sceneId, std::string &sourceId, std::shared_ptr<SourceSettings> &settings) {
+void Studio::removeScene(std::string &sceneId) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
+    auto scene = scenes[sceneId];
+    scenes.erase(sceneId);
+    if (currentScene == scene) {
+        currentScene = nullptr;
+    }
+    delete scene;
+}
+
+void Studio::addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
     findScene(sceneId)->addSource(sourceId, settings);
 }
 
 Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
     return findScene(sceneId)->findSource(sourceId);
 }
 
-void Studio::addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height) {
-    auto found = dsks.find(id);
-    if (found != dsks.end()) {
-        throw std::logic_error("Dsk " + id + " already existed");
+void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp) {
+    if (timestamp > 0) {
+        auto data = new DelaySwitchData{
+            .sceneId = sceneId,
+            .transitionType = transitionType,
+            .transitionMs = transitionMs,
+            .timestamp = timestamp,
+        };
+        delay_switch_queue.push(data);
+        return;
     }
-    auto *dsk = new Dsk(id, position, url, left, top, width, height);
-    dsks[id] = dsk;
-}
 
-void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs) {
-    Scene *next = findScene(sceneId);
+    Scene *next;
+    {
+        std::unique_lock<std::mutex> lock(scenes_mtx);
+        next = findScene(sceneId);
+    }
+
+    if (!next) {
+        throw std::runtime_error("Can't find scene: " + sceneId);
+    }
 
     if (next == currentScene) {
         blog(LOG_INFO, "Same with current scene, no need to switch, skip.");
@@ -165,7 +236,7 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
 
     obs_source_t *transition = transitions[transitionType];
     if (currentScene) {
-        obs_transition_set(transition, obs_scene_get_source(currentScene->getObsOutputScene(dsks)));
+        obs_transition_set(transition, obs_scene_get_source(currentScene->getScene()));
     }
 
     obs_set_output_source(0, transition);
@@ -174,7 +245,7 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
             transition,
             OBS_TRANSITION_MODE_AUTO,
             transitionMs,
-            obs_scene_get_source(next->getObsOutputScene(dsks))
+            obs_scene_get_source(next->getScene())
     );
 
     if (!ret) {
@@ -182,6 +253,21 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
     }
 
     currentScene = next;
+}
+
+void Studio::delay_switch_callback(void *param) {
+    auto *studio = (Studio *) param;
+    while (!studio->stop) {
+        DelaySwitchData * data = studio->delay_switch_queue.pop();
+        auto curTimestamp = studio->getSourceTimestamp(data->sceneId);
+        int64_t time_diff = data->timestamp - curTimestamp;
+        blog(LOG_INFO, "sync switch: client_ts = %lld server_ts = %lld time_diff = %lld",
+             data->timestamp, curTimestamp, time_diff);
+        if (curTimestamp && time_diff > 0 && time_diff < MAX_SWITCH_DELAY) {
+            os_sleepto_ns(os_gettime_ns() + time_diff);
+        }
+        studio->switchToScene(data->sceneId, data->transitionType, data->transitionMs, 0);
+    }
 }
 
 void Studio::loadModule(const std::string &binPath, const std::string &dataPath) {
@@ -201,6 +287,10 @@ void Studio::setObsPath(std::string &obsPath) {
 
 void Studio::setFontPath(std::string &fontPath) {
     Studio::fontPath = fontPath;
+}
+
+void Studio::setCefQueueTaskCallback(std::function<bool(std::function<void()>)> callback) {
+    Studio::cef_queue_task_callback = callback;
 }
 
 void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId) {
@@ -230,25 +320,20 @@ void Studio::moveDisplay(std::string &displayName, int x, int y, int width, int 
     found->second->move(x, y, width, height);
 }
 
-bool Studio::getAudioWithVideo() {
-    return obs_get_audio_with_video();
+Napi::Object Studio::getAudio(Napi::Env env) {
+    auto result = Napi::Object::New(env);
+    result.Set("volume", (int)obs_mul_to_db(obs_get_master_volume()));
+    result.Set("mode", obs_get_audio_with_video() ? "follow" : "standalone");
+    return result;
 }
 
-void Studio::setAudioWithVideo(bool audioWithVideo) {
-    obs_set_audio_with_video(audioWithVideo);
-}
-
-void Studio::setPgmMonitor(bool pgmMonitor) {
-    obs_set_pgm_audio_monitor(pgmMonitor);
-}
-
-float Studio::getMasterVolume() {
-    return obs_mul_to_db(obs_get_master_volume());
-}
-
-void Studio::setMasterVolume(float volume) {
-    // input volume is dB
-    obs_set_master_volume(obs_db_to_mul(volume));
+void Studio::updateAudio(const Napi::Object &audio) {
+    if (!NapiUtil::isUndefined(audio, "volume")) {
+        obs_set_master_volume(obs_db_to_mul((float)NapiUtil::getInt(audio, "volume")));
+    }
+    if (!NapiUtil::isUndefined(audio, "mode")) {
+        obs_set_audio_with_video(NapiUtil::getString(audio, "mode") == "follow");
+    }
 }
 
 void Studio::addOverlay(Overlay *overlay) {
@@ -334,4 +419,13 @@ std::string Studio::getObsPluginDataPath() {
 
 std::string Studio::getFontPath() {
     return fontPath;
+}
+
+uint64_t Studio::getSourceTimestamp(std::string &sceneId) {
+    std::unique_lock<std::mutex> lock(scenes_mtx);
+    Scene *next = findScene(sceneId);
+    if (!next || next->getSources().empty()) {
+        return 0;
+    }
+    return next->getSources().begin()->second->getTimestamp();
 }

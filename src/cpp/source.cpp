@@ -1,31 +1,23 @@
 #include "source.h"
-
 #include <utility>
 #include "callback.h"
+#include "utils.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 extern "C" {
 #include "stb/stb_image_write.h"
 }
 
-
 struct ScreenshotContext {
     Source *source;
     std::function<void(uint8_t*, int)> callback;
 };
 
-static void write_png_callback(void *context, void *data, int size) {
-    auto c = (ScreenshotContext *) context;
-    c->callback((uint8_t*) data, (size_t) size);
-}
-
 SourceType Source::getSourceType(const std::string &sourceType) {
-    if (sourceType == "Image") {
-        return Image;
-    } else if (sourceType == "MediaSource") {
-        return MediaSource;
-    } else if (sourceType == "BrowserSource") {
-        return BrowserSource;
+    if (sourceType == "live") {
+        return SOURCE_TYPE_LIVE;
+    } else if (sourceType == "media") {
+        return SOURCE_TYPE_MEDIA;
     } else {
         throw std::invalid_argument("Invalid sourceType: " + sourceType);
     }
@@ -33,15 +25,18 @@ SourceType Source::getSourceType(const std::string &sourceType) {
 
 std::string Source::getSourceTypeString(SourceType sourceType) {
     switch (sourceType) {
-        case Image:
-            return "Image";
-        case MediaSource:
-            return "MediaSource";
-        case BrowserSource:
-            return "BrowserSource";
+        case SOURCE_TYPE_LIVE:
+            return "live";
+        case SOURCE_TYPE_MEDIA:
+            return "media";
         default:
             throw std::invalid_argument("Invalid sourceType: " + std::to_string(sourceType));
     }
+}
+
+static void write_png_callback(void *context, void *data, int size) {
+    auto c = (ScreenshotContext *) context;
+    c->callback((uint8_t*) data, (size_t) size);
 }
 
 void Source::volmeter_callback(void *param, const float *magnitude, const float *peak, const float *input_peak) {
@@ -102,7 +97,7 @@ void Source::screenshot_callback(void *param) {
 void Source::source_activate_callback(void *param, calldata_t *data) {
     UNUSED_PARAMETER(data);
     auto source = (Source *) param;
-    if (source->settings->isFile && source->settings->startOnActive) {
+    if (source->type == SOURCE_TYPE_MEDIA && source->playOnActive) {
         source->play();
     }
 }
@@ -110,57 +105,192 @@ void Source::source_activate_callback(void *param, calldata_t *data) {
 void Source::source_deactivate_callback(void *param, calldata_t *data) {
     UNUSED_PARAMETER(data);
     auto source = (Source *) param;
-    if (source->settings->isFile && source->settings->startOnActive) {
-        source->pauseToBeginning();
+    if (source->type == SOURCE_TYPE_MEDIA && source->playOnActive) {
+        source->stopToBeginning();
     }
 }
 
 Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene,
-               std::shared_ptr<SourceSettings> &settings) :
+               const Napi::Object &settings) :
         id(id),
         sceneId(sceneId),
+        output(nullptr),
         obs_scene(obs_scene),
-        settings(settings),
-        type(Source::getSourceType(settings->type)),
-        url(settings->url),
         obs_source(nullptr),
         obs_scene_item(nullptr),
         obs_volmeter(nullptr),
         obs_fader(nullptr),
         transcoder(nullptr) {
+    name = NapiUtil::getString(settings, "name");
+    type = Source::getSourceType(NapiUtil::getString(settings, "type"));
+    url = NapiUtil::getString(settings,  "url");
+    hardwareDecoder = NapiUtil::getBooleanOptional(settings, "hardwareDecoder").value_or(false);
+    playOnActive = NapiUtil::getBooleanOptional(settings, "playOnActive").value_or(false);
+    asyncUnbuffered = NapiUtil::getBooleanOptional(settings, "asyncUnbuffered").value_or(false);
+    bufferingMb = NapiUtil::getIntOptional(settings, "bufferingMb").value_or(2);
+    reconnectDelaySec = NapiUtil::getIntOptional(settings, "reconnectDelaySec").value_or(10);
+    volume = NapiUtil::getIntOptional(settings, "volume").value_or(0);
+    audioLock = NapiUtil::getBooleanOptional(settings, "audioLock").value_or(false);
+    monitor = NapiUtil::getBooleanOptional(settings, "monitor").value_or(false);
+    if (!settings.Get("output").IsUndefined() && !settings.Get("output").IsNull()) {
+        output = std::make_shared<OutputSettings>(settings.Get("output").As<Napi::Object>());
+    }
+    // start source
+    start();
+}
+
+Source::~Source() {
+    stop();
+}
+
+void Source::update(const Napi::Object &settings) {
+    bool restart = false;
+    bool restartOutput = false;
+    if (!NapiUtil::isUndefined(settings, "name")) {
+        name = NapiUtil::getString(settings, "name");
+    }
+    if (!NapiUtil::isUndefined(settings, "type")) {
+        auto value = Source::getSourceType(NapiUtil::getString(settings, "type"));
+        if (type != value) {
+            type = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "url")) {
+        auto value = NapiUtil::getString(settings, "url");
+        if (url != value) {
+            url = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "hardwareDecoder")) {
+        auto value = NapiUtil::getBoolean(settings, "hardwareDecoder");
+        if (hardwareDecoder != value) {
+            hardwareDecoder = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "playOnActive")) {
+        auto value = NapiUtil::getBoolean(settings, "playOnActive");
+        if (playOnActive != value) {
+            playOnActive = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "asyncUnbuffered")) {
+        auto value = NapiUtil::getBoolean(settings, "asyncUnbuffered");
+        if (asyncUnbuffered != value) {
+            asyncUnbuffered = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "bufferingMb")) {
+        auto value = NapiUtil::getInt(settings, "bufferingMb");
+        if (bufferingMb != value) {
+            bufferingMb = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "reconnectDelaySec")) {
+        auto value = NapiUtil::getInt(settings, "reconnectDelaySec");
+        if (reconnectDelaySec != value) {
+            reconnectDelaySec = value;
+            restart = true;
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "volume")) {
+        auto value = NapiUtil::getInt(settings, "volume");
+        if (volume != value) {
+            volume = value;
+            setVolume(volume);
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "audioLock")) {
+        auto value = NapiUtil::getBoolean(settings, "audioLock");
+        if (audioLock != value) {
+            audioLock = value;
+            setAudioLock(audioLock);
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "monitor")) {
+        auto value = NapiUtil::getBoolean(settings, "monitor");
+        if (monitor != value) {
+            monitor = value;
+            setMonitor(monitor);
+        }
+    }
+    if (!NapiUtil::isUndefined(settings, "output")) {
+        if (settings.Get("output").IsNull()) {
+            if (output) {
+                stopOutput();
+                output = nullptr;
+            }
+        } else {
+            auto value = std::make_shared<OutputSettings>(settings.Get("output").As<Napi::Object>());
+            if (!output || !output->equals(value)) {
+                output = value;
+                restartOutput = true;
+            }
+        }
+    }
+    if (restart) {
+        stop();
+        start();
+    } else if (restartOutput) {
+        stopOutput();
+        startOutput();
+    }
+}
+
+void Source::screenshot(std::function<void(uint8_t*, int)> callback) {
+    auto context = new ScreenshotContext {
+      .source = this,
+      .callback = std::move(callback),
+    };
+    obs_queue_task(OBS_TASK_GRAPHICS, screenshot_callback, context, false);
+}
+
+Napi::Object Source::toNapiObject(Napi::Env env) {
+    auto result = Napi::Object::New(env);
+    result.Set("id", id);
+    result.Set("sceneId", sceneId);
+    result.Set("name", name);
+    result.Set("type", Source::getSourceTypeString(type));
+    result.Set("url", url);
+    result.Set("playOnActive", playOnActive);
+    result.Set("hardwareDecoder", hardwareDecoder);
+    result.Set("asyncUnbuffered", asyncUnbuffered);
+    result.Set("bufferingMb", bufferingMb);
+    result.Set("reconnectDelaySec", reconnectDelaySec);
+    result.Set("volume", volume);
+    result.Set("monitor", monitor);
+    result.Set("audioLock", audioLock);
+    return result;
+}
+
+uint64_t Source::getTimestamp() {
+    return obs_source_get_frame_timestamp(obs_source);
+}
+
+uint64_t Source::getServerTimestamp() {
+    uint64_t server_timestamp = obs_source_get_server_timestamp(obs_source);
+    uint64_t external_timestamp = obs_source_get_external_timestamp(obs_source);
+    return server_timestamp > 0 ? server_timestamp : external_timestamp;
 }
 
 void Source::start() {
     obs_data_t *obs_data = obs_data_create();
-    if (type == Image) {
-        obs_data_set_string(obs_data, "file", url.c_str());
-        obs_data_set_bool(obs_data, "unload", false);
-        obs_source = obs_source_create("image_source", "obs_image_source", obs_data, nullptr);
-    } else if (type == MediaSource) {
-        obs_data_set_bool(obs_data, "is_local_file", settings->isFile);
-        obs_data_set_string(obs_data, settings->isFile ? "local_file" : "input", url.c_str());
-        obs_data_set_bool(obs_data, "looping", settings->isFile);
-        obs_data_set_bool(obs_data, "hw_decode", settings->hardwareDecoder);
-        obs_data_set_bool(obs_data, "close_when_inactive", false);  // make source always read
-        obs_data_set_bool(obs_data, "restart_on_activate", false);  // make source always read
-        obs_data_set_bool(obs_data, "clear_on_media_end", false);
-        obs_data_set_int(obs_data, "buffering_mb", settings->bufferSize);
-        obs_data_set_int(obs_data, "reconnect_delay_sec", settings->reconnectDelaySec);
-        obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
-        obs_source_set_async_unbuffered(obs_source, !settings->enableBuffer);
-    } else if (type == BrowserSource) {
-        obs_data_set_bool(obs_data, "is_local_file", settings->isFile);
-        obs_data_set_string(obs_data, settings->isFile ? "local_file" : "url", url.c_str());
-        obs_video_info ovi = {};
-        obs_get_video_info(&ovi);
-        obs_data_set_int(obs_data, "width", ovi.base_width);
-        obs_data_set_int(obs_data, "height", ovi.base_height);
-        obs_data_set_string(obs_data, "css", "body { background-color: rgba(0, 0, 0, 0); margin: 0px auto; overflow: hidden; }");
-        obs_data_set_bool(obs_data, "restart_when_active", false);
-        obs_data_set_bool(obs_data, "shutdown", true);
-        obs_source = obs_source_create("browser_source", this->id.c_str(), obs_data, nullptr);
-    }
-
+    obs_data_set_bool(obs_data, "is_local_file", type == SOURCE_TYPE_MEDIA);
+    obs_data_set_string(obs_data, type == SOURCE_TYPE_MEDIA ? "local_file" : "input", url.c_str());
+    obs_data_set_bool(obs_data, "looping", type == SOURCE_TYPE_MEDIA);
+    obs_data_set_bool(obs_data, "hw_decode", hardwareDecoder);
+    obs_data_set_bool(obs_data, "close_when_inactive", false);  // make source always read
+    obs_data_set_bool(obs_data, "restart_on_activate", false);  // make source always read
+    obs_data_set_bool(obs_data, "clear_on_media_end", false);
+    obs_data_set_int(obs_data, "buffering_mb", bufferingMb);
+    obs_data_set_int(obs_data, "reconnect_delay_sec", reconnectDelaySec);
+    obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
+    obs_source_set_async_unbuffered(obs_source, asyncUnbuffered);
     obs_data_release(obs_data);
 
     if (!obs_source) {
@@ -199,32 +329,30 @@ void Source::start() {
     }
     obs_fader_attach_source(obs_fader, obs_source);
 
-    // source output
-    if (settings->output) {
-        transcoder = new SourceTranscoder();
-        transcoder->start(this);
+    // pause to beginning if it's start at active
+    if (type == SOURCE_TYPE_MEDIA && playOnActive) {
+        stopToBeginning();
     }
 
-    // pause to beginning if it's start at active
-    if (settings->isFile && settings->startOnActive) {
-        pauseToBeginning();
-    }
+    // audio
+    setVolume(volume);
+    setAudioLock(audioLock);
+    setMonitor(monitor);
 
     signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
     signal_handler_connect(handler, "activate", source_activate_callback, this);
     signal_handler_connect(handler, "deactivate", source_deactivate_callback, this);
+
+    // output
+    startOutput();
 }
 
 void Source::stop() {
+    stopOutput();
+
     signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
     signal_handler_disconnect(handler, "activate", source_activate_callback, this);
     signal_handler_disconnect(handler, "deactivate", source_deactivate_callback, this);
-
-    if (transcoder) {
-        transcoder->stop();
-        delete transcoder;
-        transcoder = nullptr;
-    }
 
     if (obs_volmeter) {
         obs_volmeter_remove_callback(obs_volmeter, volmeter_callback, this);
@@ -245,71 +373,24 @@ void Source::stop() {
     obs_scene_item = nullptr;
 }
 
+void Source::startOutput() {
+    if (output) {
+        transcoder = new SourceTranscoder();
+        transcoder->start(this);
+    }
+}
+
+void Source::stopOutput() {
+    if (transcoder) {
+        transcoder->stop();
+        delete transcoder;
+        transcoder = nullptr;
+    }
+}
+
 void Source::restart() {
     stop();
     start();
-}
-
-std::string Source::getId() {
-    return id;
-}
-
-std::string Source::getSceneId() {
-    return sceneId;
-}
-
-SourceType Source::getType() {
-    return type;
-}
-
-void Source::setUrl(const std::string &sourceUrl) {
-    url = sourceUrl;
-    restart();
-}
-
-std::string Source::getUrl() {
-    return url;
-}
-
-void Source::setVolume(float volume) {
-    // Set volume in dB
-    obs_fader_set_db(obs_fader, volume);
-}
-
-float Source::getVolume() {
-    return obs_fader ? obs_fader_get_db(obs_fader) : 0;
-}
-
-void Source::screenshot(std::function<void(uint8_t*, int)> callback) {
-    auto p = new ScreenshotContext {
-      .source = this,
-      .callback = std::move(callback),
-    };
-    obs_queue_task(OBS_TASK_GRAPHICS, screenshot_callback, p, false);
-}
-
-void Source::setAudioLock(bool audioLock) {
-    if (obs_source) {
-        obs_source_set_audio_lock(obs_source, audioLock);
-    }
-}
-
-bool Source::getAudioLock() {
-    return obs_source != nullptr && obs_source_get_audio_lock(obs_source);
-}
-
-void Source::setAudioMonitor(bool audioMonitor) {
-    if (obs_source) {
-        if (audioMonitor) {
-            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_MONITOR_ONLY);
-        } else {
-            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_NONE);
-        }
-    }
-}
-
-bool Source::getAudioMonitor() {
-    return obs_source && obs_source_get_monitoring_type(obs_source) == OBS_MONITORING_TYPE_MONITOR_ONLY;
 }
 
 void Source::play() {
@@ -318,9 +399,30 @@ void Source::play() {
     }
 }
 
-void Source::pauseToBeginning() {
+void Source::stopToBeginning() {
     if (obs_source) {
         obs_source_media_play_pause(obs_source, true);
         obs_source_media_set_time(obs_source, 0);
+    }
+}
+
+void Source::setVolume(int volume) {
+    // Set volume in dB
+    obs_fader_set_db(obs_fader, (float)volume);
+}
+
+void Source::setAudioLock(bool audioLock) {
+    if (obs_source) {
+        obs_source_set_audio_lock(obs_source, audioLock);
+    }
+}
+
+void Source::setMonitor(bool monitor) {
+    if (obs_source) {
+        if (monitor) {
+            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_MONITOR_ONLY);
+        } else {
+            obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_NONE);
+        }
     }
 }

@@ -24,34 +24,19 @@ declare namespace obs {
 
     export type RateControl = 'CBR' | 'VBR';
 
-    export type SourceType = 'Image' | 'MediaSource' | 'BrowserSource';
+    export type SourceType = 'live' | 'media';
 
     export type Position = 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left' | 'top-left' | 'center';
 
     export type TransitionType = 'cut_transition' | 'fade_transition' | 'swipe_transition' | 'slide_transition';
+
+    export type AudioMode = 'follow' | 'standalone';
 
     export type OverlayType = 'cg';
 
     export type OverlayStatus = 'up' | 'down';
 
     export type CGItemType = 'image' | 'text';
-
-    export interface Source {
-        id: string;
-        sceneId: string;
-        type: SourceType;
-        url: string;
-        volume: number;
-        audioLock: boolean;
-        audioMonitor: boolean;
-    }
-
-    export interface UpdateSourceSettings {
-        url?: string;
-        volume?: number;
-        audioLock?: boolean;
-        audioMonitor?: boolean;
-    }
 
     export interface VideoSettings {
         baseWidth: number;
@@ -66,21 +51,8 @@ declare namespace obs {
         sampleRate: number;
     }
 
-    export interface SourceSettings {
-        isFile: boolean;
-        type: SourceType;
-        url: string;
-        hardwareDecoder: boolean;
-        startOnActive: boolean;
-        enableBuffer?: boolean;
-        bufferSize?: number;
-        reconnectDelaySec?: number;
-        output?: OutputSettings;
-    }
-
     export interface OutputSettings {
-        server: string;
-        key: string;
+        url: string;
         hardwareEnable: boolean;
         width: number;
         height: number;
@@ -97,7 +69,31 @@ declare namespace obs {
     export interface Settings {
         video: VideoSettings;
         audio: AudioSettings;
-        outputs?: OutputSettings[];
+    }
+
+    export interface SourceSettings {
+        name: string;
+        type: SourceType;
+        url: string;
+        hardwareDecoder?: boolean;
+        playOnActive?: boolean;
+        volume?: number;
+        monitor?: boolean;
+        audioLock?: boolean;
+        asyncUnbuffered?: boolean;
+        bufferingMb?: number;
+        reconnectDelaySec?: number;
+        output?: OutputSettings | null;
+    }
+
+    export type Source = {
+        id: string;
+        sceneId: string;
+    } & SourceSettings;
+
+    export interface Audio {
+        volume: number;
+        mode: AudioMode;
     }
 
     export type VolmeterCallback = (
@@ -107,17 +103,6 @@ declare namespace obs {
         magnitude: number[],
         peak: number[],
         input_peak: number[]) => void;
-
-    export interface Audio {
-        masterVolume: number;
-        audioWithVideo: boolean;
-    }
-
-    export interface UpdateAudioRequest {
-        masterVolume?: number;
-        audioWithVideo?: boolean;
-        pgmMonitor?: boolean;
-    }
 
     export interface Overlay {
         id: string;
@@ -157,18 +142,22 @@ declare namespace obs {
         startup(settings: Settings): void;
         shutdown(): void;
         addScene(sceneId: string): string;
+        removeScene(sceneId: string): void;
         addSource(sceneId: string, sourceId: string, settings: SourceSettings): void;
         getSource(sceneId: string, sourceId: string): Source;
-        updateSource(sceneId: string, sourceId: string, request: UpdateSourceSettings): void;
+        getSourceServerTimestamp(sceneId: string, sourceId: string): string;
+        updateSource(sceneId: string, sourceId: string, settings: Partial<SourceSettings>): void;
         restartSource(sceneId: string, sourceId: string): void;
-        switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number): void;
+        switchToScene(sceneId: string, transitionType: TransitionType, transitionMs: number, timestamp?: string): void;
+        addOutput(outputId: string, settings: OutputSettings);
+        updateOutput(outputId: string, settings: OutputSettings);
+        removeOutput(outputId: string);
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
         destroyDisplay(name: string): void;
         moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
-        addDSK(id: string, position: Position, url: string, left: number, top: number, width: number, height: number): void;
         addVolmeterCallback(callback: VolmeterCallback): void;
         getAudio(): Audio;
-        updateAudio(request: UpdateAudioRequest): void;
+        updateAudio(audio: Partial<Audio>): void;
         screenshot(sceneId: string, sourceId: string): Promise<Buffer>;
         addOverlay(overlay: Overlay): void;
         removeOverlay(overlayId: string): void;

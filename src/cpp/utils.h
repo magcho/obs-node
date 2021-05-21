@@ -1,4 +1,8 @@
 #pragma once
+#include <optional>
+#include <mutex>
+#include <condition_variable>
+#include <deque>
 
 #define TRY_METHOD(method) \
     try { \
@@ -9,41 +13,73 @@
         Napi::Error::New(info.Env(), "Unexpected error.").ThrowAsJavaScriptException(); \
     }
 
-inline int getNapiInt(Napi::Object object, const std::string &property) {
-    auto value = object.Get(property);
-    if (value.IsUndefined()) {
-        throw std::invalid_argument(property + " should not be undefined");
+class NapiUtil {
+
+public:
+    static inline bool isUndefined(Napi::Object object, const std::string &property) {
+        return object.Get(property).IsUndefined();
     }
-    return value.As<Napi::Number>();
-}
 
-inline int getNapiIntOrDefault(Napi::Object object, const std::string &property, int defaultValue) {
-    auto value = object.Get(property);
-    return value.IsUndefined() ? defaultValue : value.As<Napi::Number>();
-}
-
-inline std::string getNapiString(Napi::Object object, const std::string &property) {
-    auto value = object.Get(property);
-    if (value.IsUndefined()) {
-        throw std::invalid_argument(property + " should not be undefined");
+    static inline int getInt(Napi::Object object, const std::string &property) {
+        auto value = object.Get(property);
+        if (value.IsUndefined()) {
+            throw std::invalid_argument(property + " should not be undefined");
+        }
+        return value.As<Napi::Number>();
     }
-    return value.As<Napi::String>();
-}
 
-inline std::string getNapiStringOrDefault(Napi::Object object, const std::string &property, const std::string &defaultValue) {
-    auto value = object.Get(property);
-    return value.IsUndefined() ? defaultValue : value.As<Napi::String>();
-}
-
-inline bool getNapiBoolean(Napi::Object object, const std::string &property) {
-    auto value = object.Get(property);
-    if (value.IsUndefined()) {
-        throw std::invalid_argument(property + " should not be undefined");
+    static inline std::optional<int> getIntOptional(Napi::Object object, const std::string &property) {
+        auto value = object.Get(property);
+        return value.IsUndefined() ? std::nullopt : std::optional<int>{value.As<Napi::Number>()};
     }
-    return value.As<Napi::Boolean>();
-}
 
-inline bool getNapiBooleanOrDefault(Napi::Object object, const std::string &property, const bool &defaultValue) {
-    auto value = object.Get(property);
-    return value.IsUndefined() ? defaultValue : value.As<Napi::Boolean>();
-}
+    static inline std::string getString(Napi::Object object, const std::string &property) {
+        auto value = object.Get(property);
+        if (value.IsUndefined()) {
+            throw std::invalid_argument(property + " should not be undefined");
+        }
+        return value.As<Napi::String>();
+    }
+
+    static inline std::optional<std::string> getStringOptional(Napi::Object object, const std::string &property) {
+        auto value = object.Get(property);
+        return value.IsUndefined() ? std::nullopt : std::optional<std::string>{value.As<Napi::String>()};
+    }
+
+    static inline bool getBoolean(Napi::Object object, const std::string &property) {
+        auto value = object.Get(property);
+        if (value.IsUndefined()) {
+            throw std::invalid_argument(property + " should not be undefined");
+        }
+        return value.As<Napi::Boolean>();
+    }
+
+    static inline std::optional<bool> getBooleanOptional(Napi::Object object, const std::string &property) {
+        auto value = object.Get(property);
+        return value.IsUndefined() ? std::nullopt : std::optional<bool>{value.As<Napi::Boolean>()};
+    }
+};
+
+template <typename T>
+class queue
+{
+private:
+    std::mutex              d_mutex;
+    std::condition_variable d_condition;
+    std::deque<T>           d_queue;
+public:
+    void push(T const& value) {
+        {
+            std::unique_lock<std::mutex> lock(this->d_mutex);
+            d_queue.push_front(value);
+        }
+        this->d_condition.notify_one();
+    }
+    T pop() {
+        std::unique_lock<std::mutex> lock(this->d_mutex);
+        this->d_condition.wait(lock, [=]{ return !this->d_queue.empty(); });
+        T rc(std::move(this->d_queue.back()));
+        this->d_queue.pop_back();
+        return rc;
+    }
+};

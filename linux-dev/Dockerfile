@@ -54,6 +54,22 @@ RUN apt-get update && \
     xserver-xorg-input-void \
     patchelf
 
+# For Browser Source
+RUN apt install -y libnss3-dev
+
+# For Remote debug
+RUN apt-get install -y ssh rsync
+RUN ( \
+    echo 'LogLevel DEBUG2'; \
+    echo 'PermitRootLogin yes'; \
+    echo 'PasswordAuthentication yes'; \
+    echo 'Subsystem sftp /usr/lib/openssh/sftp-server'; \
+  ) > /etc/ssh/sshd_config_test_clion \
+  && mkdir /run/sshd \
+  && useradd -m user \
+  && yes password | passwd user \
+  && usermod -s /bin/bash user
+
 COPY xorg.conf /etc/xorg.conf
 COPY entrypoint.sh /entrypoint.sh
 

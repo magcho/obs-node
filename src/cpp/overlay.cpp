@@ -16,7 +16,7 @@ unsigned long hex_to_number(const std::string &hex) {
 }
 
 Overlay *Overlay::create(Napi::Object object) {
-    std::string t = getNapiString(object, "type");
+    std::string t = NapiUtil::getString(object, "type");
     if (t == "cg") {
         return new CG(object);
     }
@@ -25,9 +25,9 @@ Overlay *Overlay::create(Napi::Object object) {
 
 Overlay::Overlay(Napi::Object object) :
         index(-1) {
-    id = getNapiString(object, "id");
-    name = getNapiString(object, "name");
-    auto t = getNapiString(object, "type");
+    id = NapiUtil::getString(object, "id");
+    name = NapiUtil::getString(object, "name");
+    auto t = NapiUtil::getString(object, "type");
     if (t == "cg") {
         type = OVERLAY_TYPE_CG;
     } else {
@@ -48,8 +48,8 @@ CG::CG(Napi::Object object) : Overlay(object) {
     obs_video_info ovi = {};
     obs_get_video_info(&ovi);
 
-    baseWidth = getNapiInt(object, "baseWidth");
-    baseHeight = getNapiInt(object, "baseHeight");
+    baseWidth = NapiUtil::getInt(object, "baseWidth");
+    baseHeight = NapiUtil::getInt(object, "baseHeight");
     double scaleX = ovi.base_width * 1.0 / baseWidth;
     double scaleY = ovi.base_height * 1.0 / baseHeight;
 
@@ -125,7 +125,7 @@ Napi::Object CG::toNapiObject(Napi::Env env) {
 }
 
 CGItem::CGItem(Napi::Object object) {
-    auto t = getNapiString(object, "type");
+    auto t = NapiUtil::getString(object, "type");
     if (t == "image") {
         type = CG_ITEM_TYPE_IMAGE;
     } else if (t == "text") {
@@ -133,10 +133,10 @@ CGItem::CGItem(Napi::Object object) {
     } else {
         type = CG_ITEM_TYPE_UNKNOWN;
     }
-    x = getNapiInt(object, "x");
-    y = getNapiInt(object, "y");
-    width = getNapiInt(object, "width");
-    height = getNapiInt(object, "height");
+    x = NapiUtil::getInt(object, "x");
+    y = NapiUtil::getInt(object, "y");
+    width = NapiUtil::getInt(object, "width");
+    height = NapiUtil::getInt(object, "height");
     obs_source = nullptr;
 }
 
@@ -155,10 +155,10 @@ Napi::Object CGItem::toNapiObject(Napi::Env env) {
 }
 
 CGText::CGText(const std::string &itemId, Napi::Object object, double scaleX) : CGItem(object) {
-    content = getNapiString(object, "content");
-    fontSize = getNapiInt(object, "fontSize");
-    fontFamily = getNapiString(object, "fontFamily");
-    colorABGR = getNapiString(object, "colorABGR");
+    content = NapiUtil::getString(object, "content");
+    fontSize = NapiUtil::getInt(object, "fontSize");
+    fontFamily = NapiUtil::getString(object, "fontFamily");
+    colorABGR = NapiUtil::getString(object, "colorABGR");
     obs_data_t *settings = obs_data_create();
     obs_data_t *font = obs_data_create();
     obs_data_set_string(font, "face", fontFamily.c_str());
@@ -189,7 +189,7 @@ Napi::Object CGText::toNapiObject(Napi::Env env) {
 }
 
 CGImage::CGImage(const std::string &itemId, Napi::Object object) : CGItem(object) {
-    url = getNapiString(object, "url");
+    url = NapiUtil::getString(object, "url");
     obs_data_t *settings = obs_data_create();
     obs_data_set_string(settings, "file", url.c_str());
     obs_data_set_bool(settings, "unload", false);

@@ -2,7 +2,6 @@
 
 #include "settings.h"
 #include "source.h"
-#include "dsk.h"
 #include <string>
 #include <map>
 #include <obs.h>
@@ -14,11 +13,13 @@ public:
 
     std::string getId() { return id; }
 
-    void addSource(std::string &sourceId, std::shared_ptr<SourceSettings> &settings);
+    void addSource(std::string &sourceId, const Napi::Object &settings);
 
     Source *findSource(std::string &sourceId);
 
-    obs_scene_t *getObsOutputScene(std::map<std::string, Dsk*> &dsks);
+    obs_scene_t *getScene();
+
+    std::map<std::string, Source *> &getSources();
 
 private:
     static obs_scene_t *createObsScene(std::string &sceneId);
@@ -27,6 +28,5 @@ private:
     int index;
     Settings *settings;
     obs_scene_t *obs_scene;
-    obs_scene_t *obs_output_scene;
     std::map<std::string, Source *> sources;
 };

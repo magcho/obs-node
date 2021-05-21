@@ -7,33 +7,42 @@
 #include "overlay.h"
 #include <map>
 #include <obs.h>
+#include "utils.h"
+
+struct DelaySwitchData;
 
 class Studio {
 
 public:
     static void setObsPath(std::string &obsPath);
     static void setFontPath(std::string &fontPath);
+    static void setCefQueueTaskCallback(std::function<bool(std::function<void()>)> callback);
     static std::string getObsBinPath();
     static std::string getObsPluginPath();
     static std::string getObsPluginDataPath();
     static std::string getFontPath();
 
-    Studio(Settings *settings);
-    ~Studio();
+    explicit Studio(Settings *settings);
 
     void startup();
 
     void shutdown();
 
+    void addOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings);
+
+    void updateOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings);
+
+    void removeOutput(const std::string &outputId);
+
     void addScene(std::string &sceneId);
 
-    void addSource(std::string &sceneId, std::string &sourceId, std::shared_ptr<SourceSettings> &settings);
+    void removeScene(std::string &sceneId);
+
+    void addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings);
 
     Source *findSource(std::string &sceneId, std::string &sourceId);
 
-    void addDSK(std::string &id, std::string &position, std::string &url, int left, int top, int width, int height);
-
-    void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs);
+    void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp);
 
     void createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId);
 
@@ -41,15 +50,9 @@ public:
 
     void moveDisplay(std::string &displayName, int x, int y, int width, int height);
 
-    bool getAudioWithVideo();
+    Napi::Object getAudio(Napi::Env env);
 
-    void setAudioWithVideo(bool audioWithVideo);
-
-    void setPgmMonitor(bool pgmMonitor);
-
-    float getMasterVolume();
-
-    void setMasterVolume(float volume);
+    void updateAudio(const Napi::Object &audio);
 
     void addOverlay(Overlay *overlay);
 
@@ -63,16 +66,22 @@ public:
 
 private:
     static void loadModule(const std::string &binPath, const std::string &dataPath);
+    static void delay_switch_callback(void *param);
     Scene *findScene(std::string &sceneId);
+    uint64_t getSourceTimestamp(std::string &sceneId);
 
     static std::string obsPath;
     static std::string fontPath;
+    static std::function<bool(std::function<void()>)> cef_queue_task_callback;
     Settings *settings;
     std::map<std::string, Scene *> scenes;
     std::map<std::string, obs_source_t *> transitions;
     std::map<std::string, Display *> displays;
-    std::map<std::string, Dsk *> dsks;
     std::map<std::string, Overlay *> overlays;
     Scene *currentScene;
-    std::vector<Output *> outputs;
+    std::map<std::string, Output *> outputs;
+
+    volatile bool stop;
+    std::thread delay_switch_thread;
+    queue<DelaySwitchData *> delay_switch_queue;
 };
