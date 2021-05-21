@@ -97,7 +97,6 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "\\obs-x264.dll", getObsPluginDataPath() + "\\obs-x264");
         loadModule(getObsPluginPath() + "\\obs-outputs.dll", getObsPluginDataPath() + "\\obs-outputs");
         loadModule(getObsPluginPath() + "\\text-freetype2.dll", getObsPluginDataPath() + "\\text-freetype2");
-        loadModule(getObsPluginPath() + "\\obs-browser.dll", getObsPluginDataPath() + "\\obs-browser");
 #else
         loadModule(getObsPluginPath() + "/image-source.so", getObsPluginDataPath() + "/image-source");
         loadModule(getObsPluginPath() + "/obs-ffmpeg.so", getObsPluginDataPath() + "/obs-ffmpeg");
@@ -106,7 +105,6 @@ void Studio::startup() {
         loadModule(getObsPluginPath() + "/obs-x264.so", getObsPluginDataPath() + "/obs-x264");
         loadModule(getObsPluginPath() + "/obs-outputs.so", getObsPluginDataPath() + "/obs-outputs");
         loadModule(getObsPluginPath() + "/text-freetype2.so", getObsPluginDataPath() + "/text-freetype2");
-        loadModule(getObsPluginPath() + "/obs-browser.so", getObsPluginDataPath() + "/obs-browser");
 #endif
 
         obs_post_load_modules();
