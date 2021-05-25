@@ -125,15 +125,30 @@ void Studio::startup() {
 }
 
 void Studio::shutdown() {
+    stop = true;
+    delay_switch_queue.push(nullptr);
+    delay_switch_thread.join();
+    for (const auto& scene : scenes) {
+        delete scene.second;
+    }
+    for (const auto& transition : transitions) {
+        obs_source_release(transition.second);
+    }
+    for (const auto& display : displays) {
+        delete display.second;
+    }
+    for (const auto& overlay : overlays) {
+        delete overlay.second;
+    }
     for (auto output : outputs) {
         output.second->stop();
         delete output.second;
     }
+    scenes.clear();
+    transitions.clear();
+    displays.clear();
+    overlays.clear();
     outputs.clear();
-    stop = true;
-    delay_switch_queue.push(nullptr);
-    delay_switch_thread.join();
-    stop = false;
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
