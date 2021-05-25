@@ -131,6 +131,7 @@ void Studio::shutdown() {
     }
     outputs.clear();
     stop = true;
+    delay_switch_queue.push(nullptr);
     delay_switch_thread.join();
     stop = false;
     obs_shutdown();
@@ -255,8 +256,11 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
 
 void Studio::delay_switch_callback(void *param) {
     auto *studio = (Studio *) param;
-    while (!studio->stop) {
+    while (true) {
         DelaySwitchData * data = studio->delay_switch_queue.pop();
+        if (studio->stop) {
+            break;
+        }
         auto curTimestamp = studio->getSourceTimestamp(data->sceneId);
         int64_t time_diff = data->timestamp - curTimestamp;
         blog(LOG_INFO, "sync switch: client_ts = %lld server_ts = %lld time_diff = %lld",

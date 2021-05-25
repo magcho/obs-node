@@ -182,6 +182,8 @@ question(async sceneId => {
     } else if (sceneId.startsWith('removeScene ')) {
         const id = sceneId.replace('removeScene ', '');
         obs.removeScene(id);
+    } else if (sceneId.startsWith('shutdown')) {
+        obs.shutdown();
     } else {
         obs.switchToScene(sceneId, 'cut_transition', 1000);
     }
