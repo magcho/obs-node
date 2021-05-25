@@ -357,6 +357,9 @@ void Studio::upOverlay(const std::string &overlayId) {
     if (overlays.find(overlayId) == overlays.end()) {
         throw std::logic_error("Can't find overlay: " + overlayId);
     }
+    if (overlays[overlayId]->index > -1) {
+        return;
+    }
     // find max overlay index
     int index = -1;
     for (const auto& entry : overlays) {
