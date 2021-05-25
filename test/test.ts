@@ -50,6 +50,22 @@ const outputs: Output[] = [
                 audioBitrateKbps: 64,
             }
         },
+        {
+            id: 'preview',
+            settings: {
+                url: 'rtmp://host.docker.internal/preview/output',
+                hardwareEnable: false,
+                width: 320,
+                height: 180,
+                keyintSec: 5,
+                rateControl: 'CBR',
+                preset: 'ultrafast',
+                profile: 'main',
+                tune: 'zerolatency',
+                videoBitrateKbps: 1000,
+                audioBitrateKbps: 64,
+            }
+        },
     ];
 
 const overlays: Overlay[] = [
@@ -163,6 +179,9 @@ question(async sceneId => {
     } else if (sceneId.startsWith('downOverlay ')) {
         const overlayId = sceneId.replace('downOverlay ', '');
         obs.downOverlay(overlayId);
+    } else if (sceneId.startsWith('removeScene ')) {
+        const id = sceneId.replace('removeScene ', '');
+        obs.removeScene(id);
     } else {
         obs.switchToScene(sceneId, 'cut_transition', 1000);
     }
