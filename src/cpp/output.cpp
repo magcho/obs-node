@@ -60,24 +60,9 @@ void Output::start(video_t *video, audio_t *audio) {
     obs_encoder_set_audio(audio_encoder, audio);
 
     // output service
-    bool is_rtmp = settings->url.find("rtmp", 0) == 0;
-    if (is_rtmp) {
-        output_service = obs_service_create("rtmp_common", "rtmp service", nullptr, nullptr);
-    } else {
-        output_service = obs_service_create("rtmp_custom", "custom service", nullptr, nullptr);
-    }
-
-    if (!output_service) {
-        throw std::runtime_error("Failed to create output service.");
-    }
-
-    obs_data_t *output_service_settings = obs_data_create();
-    if (!output_service_settings) {
-        throw std::runtime_error("Failed to create output settings.");
-    }
-
     std::string server;
     std::string key;
+    bool is_rtmp = settings->url.find("rtmp", 0) == 0;
     if (is_rtmp) {
         auto index = settings->url.rfind('/');
         server = settings->url.substr(0, index);
@@ -86,15 +71,23 @@ void Output::start(video_t *video, audio_t *audio) {
         server = settings->url;
     }
 
+    obs_data_t *output_service_settings = obs_data_create();
     obs_data_set_string(output_service_settings, "server", server.c_str());
     if (!key.empty()) {
         obs_data_set_string(output_service_settings, "key", key.c_str());
     }
 
     obs_service_update(output_service, output_service_settings);
+    output_service = obs_service_create("rtmp_custom", "custom service", output_service_settings, nullptr);
+    if (!output_service) {
+        throw std::runtime_error("Failed to create output service.");
+    }
+
     obs_service_apply_encoder_settings(output_service, video_encoder_settings, audio_encoder_settings);
+
     obs_data_release(video_encoder_settings);
     obs_data_release(audio_encoder_settings);
+    obs_data_release(output_service_settings);
 
     // output
     if (is_rtmp) {
