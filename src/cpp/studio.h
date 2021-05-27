@@ -44,7 +44,7 @@ public:
 
     void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp);
 
-    void createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId);
+    void createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, const std::vector<std::string> &sourceIds);
 
     void destroyDisplay(std::string &displayName);
 

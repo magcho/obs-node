@@ -58,6 +58,14 @@ public:
         auto value = object.Get(property);
         return value.IsUndefined() ? std::nullopt : std::optional<bool>{value.As<Napi::Boolean>()};
     }
+
+    static inline std::vector<std::string> getStringArray(const Napi::Array &array) {
+        std::vector<std::string> result;
+        for (uint32_t i = 0; i < array.Length(); ++i) {
+            result.push_back((std::string)array.Get(i).As<Napi::String>());
+        }
+        return result;
+    }
 };
 
 template <typename T>

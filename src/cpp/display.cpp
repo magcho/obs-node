@@ -4,7 +4,7 @@
 #include "display.h"
 #include "./platform/platform.h"
 
-Display::Display(void *parentHandle, int scaleFactor, std::string &sourceName) {
+Display::Display(void *parentHandle, int scaleFactor, const std::vector<std::string> &sourceIds) {
     this->parentHandle = parentHandle;
     this->scaleFactor = scaleFactor;
 
@@ -31,13 +31,10 @@ Display::Display(void *parentHandle, int scaleFactor, std::string &sourceName) {
     }
 
     // obs source
-    if (sourceName == "output") {
-        displayOutput = true;
-        obs_source = nullptr;
-    } else {
-        displayOutput = false;
-        obs_source = obs_get_source_by_name(sourceName.c_str());
+    for (auto id : sourceIds) {
+        obs_source_t *obs_source = obs_get_source_by_name(id.c_str());
         obs_source_inc_showing(obs_source);
+        obs_sources.push_back(obs_source);
     }
 
     // draw callback
@@ -46,7 +43,7 @@ Display::Display(void *parentHandle, int scaleFactor, std::string &sourceName) {
 
 Display::~Display() {
     obs_display_remove_draw_callback(obs_display, displayCallback, this);
-    if (obs_source) {
+    for (auto obs_source : obs_sources) {
         obs_source_dec_showing(obs_source);
         obs_source_release(obs_source);
     }
@@ -69,34 +66,41 @@ void Display::move(int x, int y, int width, int height) {
 
 void Display::displayCallback(void *displayPtr, uint32_t cx, uint32_t cy) {
     auto *dp = static_cast<Display *>(displayPtr);
-
-    // Get proper source/base size.
-    uint32_t width = 0;
-    uint32_t height = 0;
-    if (dp->displayOutput) {
-        obs_video_info ovi = {};
-        obs_get_video_info(&ovi);
-        width = ovi.base_width;
-        height = ovi.base_height;
-    } else if (dp->obs_source) {
-        width = obs_source_get_width(dp->obs_source);
-        height = obs_source_get_height(dp->obs_source);
+    if (dp->obs_sources.empty()) {
+        return;
     }
 
-    if (width == 0)
-        width = 1;
-    if (height == 0)
-        height = 1;
+    // Get proper source/base size.
+    bool first_source = true;
+    uint32_t base_width = 0;
+    uint32_t base_height = 0;
+    uint32_t source_width = 0;
+    uint32_t source_height = 0;
+
+    obs_video_info ovi = {};
+    obs_get_video_info(&ovi);
+    base_width = ovi.base_width;
+    base_height = ovi.base_height;
+
+    source_width = obs_source_get_width(dp->obs_sources[0]);
+    source_height = obs_source_get_height(dp->obs_sources[0]);
+
+    if (source_width == 0)
+        source_width = 1;
+    if (source_height == 0)
+        source_height = 1;
 
     gs_projection_push();
 
-    gs_ortho(0.0f, (float)width, 0.0f, (float)height, -1, 1);
-
     // Source Rendering
-    if (dp->displayOutput) {
-        obs_render_main_view();
-    } else if (dp->obs_source) {
-        obs_source_video_render(dp->obs_source);
+    for (auto source : dp->obs_sources) {
+        if (first_source && source_width != 1) {
+            first_source = false;
+            gs_ortho(0.0f, (float) source_width, 0.0f, (float) source_height, -1, 1);
+        } else {
+            gs_ortho(0.0f, (float) base_width, 0.0f, (float) base_height, -1, 1);
+        }
+        obs_source_video_render(source);
     }
 
     gs_projection_pop();
