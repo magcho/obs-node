@@ -152,7 +152,7 @@ declare namespace obs {
         addOutput(outputId: string, settings: OutputSettings);
         updateOutput(outputId: string, settings: OutputSettings);
         removeOutput(outputId: string);
-        createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceId: string): void;
+        createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceIds: string[]): void;
         destroyDisplay(name: string): void;
         moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
         addVolmeterCallback(callback: VolmeterCallback): void;

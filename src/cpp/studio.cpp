@@ -310,12 +310,12 @@ void Studio::setCefQueueTaskCallback(std::function<bool(std::function<void()>)> 
     Studio::cef_queue_task_callback = callback;
 }
 
-void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, std::string &sourceId) {
+void Studio::createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, const std::vector<std::string> &sourceIds) {
     auto found = displays.find(displayName);
     if (found != displays.end()) {
         throw std::logic_error("Display " + displayName + " already existed");
     }
-    auto *display = new Display(parentHandle, scaleFactor, sourceId);
+    auto *display = new Display(parentHandle, scaleFactor, sourceIds);
     displays[displayName] = display;
 }
 

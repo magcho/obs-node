@@ -70,7 +70,7 @@ CG::CG(Napi::Object object) : Overlay(object) {
     }
 
     // create overlay scene
-    obs_scene = obs_scene_create_private(("overlay_" + id).c_str());
+    obs_scene = obs_scene_create(id.c_str());
     for (auto &item : items) {
         // Add the source to the scene
         obs_scene_item *obs_scene_item = obs_scene_add(obs_scene, item->obs_source);

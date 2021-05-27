@@ -173,8 +173,8 @@ Napi::Value createDisplay(const Napi::CallbackInfo &info) {
     std::string displayName = info[0].As<Napi::String>();
     void *parentHandle = info[1].As<Napi::Buffer<void *>>().Data();
     int scaleFactor = info[2].As<Napi::Number>();
-    std::string sourceId = info[3].As<Napi::String>();
-    TRY_METHOD(studio->createDisplay(displayName, parentHandle, scaleFactor, sourceId))
+    std::vector<std::string> sourceIds = NapiUtil::getStringArray(info[3].As<Napi::Array>());
+    TRY_METHOD(studio->createDisplay(displayName, parentHandle, scaleFactor, sourceIds))
     return info.Env().Undefined();
 }
 
