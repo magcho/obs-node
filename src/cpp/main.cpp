@@ -194,6 +194,13 @@ Napi::Value moveDisplay(const Napi::CallbackInfo &info) {
     return info.Env().Undefined();
 }
 
+Napi::Value updateDisplay(const Napi::CallbackInfo &info) {
+    std::string displayName = info[0].As<Napi::String>();
+    std::vector<std::string> sourceIds = NapiUtil::getStringArray(info[1].As<Napi::Array>());
+    TRY_METHOD(studio->updateDisplay(displayName, sourceIds))
+    return info.Env().Undefined();
+}
+
 Napi::Value addVolmeterCallback(const Napi::CallbackInfo &info) {
     auto callback = info[0].As<Napi::Function>();
     volmeter_thread = Napi::ThreadSafeFunction::New(
@@ -354,6 +361,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "createDisplay"), Napi::Function::New(env, createDisplay));
     exports.Set(Napi::String::New(env, "destroyDisplay"), Napi::Function::New(env, destroyDisplay));
     exports.Set(Napi::String::New(env, "moveDisplay"), Napi::Function::New(env, moveDisplay));
+    exports.Set(Napi::String::New(env, "updateDisplay"), Napi::Function::New(env, updateDisplay));
     exports.Set(Napi::String::New(env, "addVolmeterCallback"), Napi::Function::New(env, addVolmeterCallback));
     exports.Set(Napi::String::New(env, "getAudio"), Napi::Function::New(env, getAudio));
     exports.Set(Napi::String::New(env, "updateAudio"), Napi::Function::New(env, updateAudio));

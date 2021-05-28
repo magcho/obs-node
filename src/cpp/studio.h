@@ -50,6 +50,8 @@ public:
 
     void moveDisplay(std::string &displayName, int x, int y, int width, int height);
 
+    void updateDisplay(std::string &displayName, const std::vector<std::string> &sourceIds);
+
     Napi::Object getAudio(Napi::Env env);
 
     void updateAudio(const Napi::Object &audio);

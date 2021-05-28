@@ -337,6 +337,14 @@ void Studio::moveDisplay(std::string &displayName, int x, int y, int width, int 
     found->second->move(x, y, width, height);
 }
 
+void Studio::updateDisplay(std::string &displayName, const std::vector<std::string> &sourceIds) {
+    auto found = displays.find(displayName);
+    if (found == displays.end()) {
+        throw std::logic_error("Can't find display: " + displayName);
+    }
+    found->second->update(sourceIds);
+}
+
 Napi::Object Studio::getAudio(Napi::Env env) {
     auto result = Napi::Object::New(env);
     result.Set("volume", (int)obs_mul_to_db(obs_get_master_volume()));

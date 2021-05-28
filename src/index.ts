@@ -154,6 +154,7 @@ declare namespace obs {
         removeOutput(outputId: string);
         createDisplay(name: string, parentWindow: Buffer, scaleFactor: number, sourceIds: string[]): void;
         destroyDisplay(name: string): void;
+        updateDisplay(name: string, sourceIds: string[]): void;
         moveDisplay(name: string, x: number, y: number, width: number, height: number): void;
         addVolmeterCallback(callback: VolmeterCallback): void;
         getAudio(): Audio;
