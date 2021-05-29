@@ -65,9 +65,6 @@ void Display::update(const std::vector<std::string> &sourceIds) {
 
 void Display::displayCallback(void *displayPtr, uint32_t cx, uint32_t cy) {
     auto *dp = static_cast<Display *>(displayPtr);
-    if (dp->obs_sources.empty()) {
-        return;
-    }
 
     obs_video_info ovi = {};
     obs_get_video_info(&ovi);
