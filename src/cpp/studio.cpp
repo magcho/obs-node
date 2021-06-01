@@ -82,8 +82,8 @@ void Studio::startup() {
             }
         }
 
-        if (!settings->timestampFontPath.empty()) {
-            font_rasterizer_initialize(settings->timestampFontPath.c_str());
+        if (settings->showTimestamp) {
+            font_rasterizer_initialize(settings->timestampFontPath.c_str(), settings->timestampFontHeight);
         }
 
         // setup cef queue task callback
