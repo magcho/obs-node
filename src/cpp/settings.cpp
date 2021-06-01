@@ -52,6 +52,7 @@ Settings::Settings(const Napi::Object &settings) :
     fontDirectory = NapiUtil::getStringOptional(settings, "fontDirectory").value_or("");
     showTimestamp = NapiUtil::getBooleanOptional(settings, "showTimestamp").value_or(false);
     timestampFontPath = NapiUtil::getStringOptional(settings, "timestampFontPath").value_or("");
+    timestampFontHeight = NapiUtil::getIntOptional(settings, "timestampFontHeight").value_or(40);
 
     // video settings
     auto videoSettings = settings.Get("video").As<Napi::Object>();

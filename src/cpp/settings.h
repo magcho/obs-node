@@ -48,6 +48,7 @@ public:
     std::string fontDirectory;
     bool showTimestamp;
     std::string timestampFontPath;
+    uint32_t timestampFontHeight;
     VideoSettings *video;
     AudioSettings *audio;
 };

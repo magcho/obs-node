@@ -71,6 +71,7 @@ declare namespace obs {
         fontDirectory?: string;
         showTimestamp?: boolean;
         timestampFontPath?: string;
+        timestampFontHeight?: number;
         video: VideoSettings;
         audio: AudioSettings;
     }
