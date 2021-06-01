@@ -1,8 +1,8 @@
-import * as obs from '../src';
 import * as readline from 'readline';
-import {CG, CGImage, CGText, Overlay, SourceSettings} from "../src";
-import * as fs from "fs";
-import {OutputSettings} from "../dist";
+import * as fs from 'fs';
+import * as path from 'path';
+import * as obs from '../src';
+import { CG, CGImage, CGText, Overlay, SourceSettings, OutputSettings } from '../src';
 
 function as<T>(value: T): T {
     return value;
@@ -20,6 +20,8 @@ interface Output {
 }
 
 const settings: obs.Settings = {
+    showTimestamp: true,
+    timestampFontPath: path.resolve(__dirname, '../fonts/SimSun.ttf'),
     video: {
         baseWidth: 1280,
         baseHeight: 720,

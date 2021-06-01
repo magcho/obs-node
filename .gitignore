@@ -7,4 +7,5 @@ prebuild/
 cmake-*/
 dist/
 clips/
+fonts/
 cef.log

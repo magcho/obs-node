@@ -49,6 +49,9 @@ Settings::Settings(const Napi::Object &settings) :
         audio(nullptr) {
 
     locale = NapiUtil::getStringOptional(settings, "locale").value_or("zh-CN");
+    fontDirectory = NapiUtil::getStringOptional(settings, "fontDirectory").value_or("");
+    showTimestamp = NapiUtil::getBooleanOptional(settings, "showTimestamp").value_or(false);
+    timestampFontPath = NapiUtil::getStringOptional(settings, "timestampFontPath").value_or("");
 
     // video settings
     auto videoSettings = settings.Get("video").As<Napi::Object>();

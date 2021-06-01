@@ -15,12 +15,11 @@ class Studio {
 
 public:
     static void setObsPath(std::string &obsPath);
-    static void setFontPath(std::string &fontPath);
     static void setCefQueueTaskCallback(std::function<bool(std::function<void()>)> callback);
+
     static std::string getObsBinPath();
     static std::string getObsPluginPath();
     static std::string getObsPluginDataPath();
-    static std::string getFontPath();
 
     explicit Studio(Settings *settings);
 
@@ -73,7 +72,6 @@ private:
     uint64_t getSourceTimestamp(std::string &sceneId);
 
     static std::string obsPath;
-    static std::string fontPath;
     static std::function<bool(std::function<void()>)> cef_queue_task_callback;
     Settings *settings;
     std::map<std::string, Scene *> scenes;

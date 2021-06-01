@@ -1,4 +1,5 @@
 #pragma once
+#include "settings.h"
 #include <string>
 #include <vector>
 #include <napi.h>
@@ -20,7 +21,7 @@ class Overlay {
     friend class Studio;
 
 public:
-    static Overlay *create(Napi::Object object);
+    static Overlay *create(Napi::Object object, Settings *settings);
     virtual ~Overlay() = default;
 
     virtual void up(int index) = 0;
@@ -67,7 +68,7 @@ public:
 class CGText : public CGItem {
 
 public:
-    explicit CGText(const std::string &itemId, Napi::Object object, double scaleX);
+    explicit CGText(const std::string &itemId, Napi::Object object, double scaleX, Settings *settings);
     Napi::Object toNapiObject(Napi::Env env) override;
 
     std::string content;
@@ -79,7 +80,7 @@ public:
 class CG : public Overlay {
 
 public:
-    explicit CG(Napi::Object object);
+    explicit CG(Napi::Object object, Settings *settings);
     ~CG() override;
 
     Napi::Object toNapiObject(Napi::Env env) override;

@@ -13,7 +13,7 @@ public:
 
     std::string getId() { return id; }
 
-    void addSource(std::string &sourceId, const Napi::Object &settings);
+    void addSource(std::string &sourceId, Settings *studioSettings, const Napi::Object &settings);
 
     Source *findSource(std::string &sourceId);
 

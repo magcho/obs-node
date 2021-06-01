@@ -21,6 +21,7 @@ public:
     Source(std::string &id,
            std::string &sceneId,
            obs_scene_t *obs_scene,
+           Settings *studioSettings,
            const Napi::Object &settings
     );
     ~Source();
@@ -74,6 +75,7 @@ private:
     int volume;
     bool audioLock;
     bool monitor;
+    bool showTimestamp;
     std::shared_ptr<OutputSettings> output;
 
     obs_scene_t *obs_scene;
