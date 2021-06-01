@@ -10,7 +10,7 @@ extern "C" {
 
 struct ScreenshotContext {
     Source *source;
-    std::function<void(uint8_t*, int)> callback;
+    std::function<void(uint8_t *, int)> callback;
 };
 
 SourceType Source::getSourceType(const std::string &sourceType) {
@@ -36,7 +36,7 @@ std::string Source::getSourceTypeString(SourceType sourceType) {
 
 static void write_png_callback(void *context, void *data, int size) {
     auto c = (ScreenshotContext *) context;
-    c->callback((uint8_t*) data, (size_t) size);
+    c->callback((uint8_t *) data, (size_t) size);
 }
 
 void Source::volmeter_callback(void *param, const float *magnitude, const float *peak, const float *input_peak) {
@@ -57,7 +57,7 @@ void Source::volmeter_callback(void *param, const float *magnitude, const float 
 }
 
 void Source::screenshot_callback(void *param) {
-    auto p = (ScreenshotContext *)param;
+    auto p = (ScreenshotContext *) param;
     int width = (int) obs_source_get_width(p->source->obs_source);
     int height = (int) obs_source_get_height(p->source->obs_source);
     if (width == 0 || height == 0) {
@@ -86,7 +86,7 @@ void Source::screenshot_callback(void *param) {
                 gs_stagesurface_unmap(stagesurf);
             }
         }
-    } catch(...) {
+    } catch (...) {
         blog(LOG_ERROR, "Screenshot error");
     }
     gs_texrender_destroy(texrender);
@@ -110,7 +110,7 @@ void Source::source_deactivate_callback(void *param, calldata_t *data) {
     }
 }
 
-Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene,
+Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene, Settings *studioSettings,
                const Napi::Object &settings) :
         id(id),
         sceneId(sceneId),
@@ -123,7 +123,7 @@ Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene,
         transcoder(nullptr) {
     name = NapiUtil::getString(settings, "name");
     type = Source::getSourceType(NapiUtil::getString(settings, "type"));
-    url = NapiUtil::getString(settings,  "url");
+    url = NapiUtil::getString(settings, "url");
     hardwareDecoder = NapiUtil::getBooleanOptional(settings, "hardwareDecoder").value_or(false);
     playOnActive = NapiUtil::getBooleanOptional(settings, "playOnActive").value_or(false);
     asyncUnbuffered = NapiUtil::getBooleanOptional(settings, "asyncUnbuffered").value_or(false);
@@ -132,6 +132,7 @@ Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene,
     volume = NapiUtil::getIntOptional(settings, "volume").value_or(0);
     audioLock = NapiUtil::getBooleanOptional(settings, "audioLock").value_or(false);
     monitor = NapiUtil::getBooleanOptional(settings, "monitor").value_or(false);
+    showTimestamp = studioSettings->showTimestamp;
     if (!settings.Get("output").IsUndefined() && !settings.Get("output").IsNull()) {
         output = std::make_shared<OutputSettings>(settings.Get("output").As<Napi::Object>());
     }
@@ -242,10 +243,10 @@ void Source::update(const Napi::Object &settings) {
     }
 }
 
-void Source::screenshot(std::function<void(uint8_t*, int)> callback) {
-    auto context = new ScreenshotContext {
-      .source = this,
-      .callback = std::move(callback),
+void Source::screenshot(std::function<void(uint8_t *, int)> callback) {
+    auto context = new ScreenshotContext{
+            .source = this,
+            .callback = std::move(callback),
     };
     obs_queue_task(OBS_TASK_GRAPHICS, screenshot_callback, context, false);
 }
@@ -290,11 +291,16 @@ void Source::start() {
     obs_data_set_int(obs_data, "buffering_mb", bufferingMb);
     obs_data_set_int(obs_data, "reconnect_delay_sec", reconnectDelaySec);
     obs_source = obs_source_create("ffmpeg_source", this->id.c_str(), obs_data, nullptr);
-    obs_source_set_async_unbuffered(obs_source, asyncUnbuffered);
     obs_data_release(obs_data);
 
     if (!obs_source) {
         throw std::runtime_error("Failed to create obs_source");
+    }
+
+    obs_source_set_async_unbuffered(obs_source, asyncUnbuffered);
+
+    if (showTimestamp) {
+        obs_source_show_timestamp(obs_source, true);
     }
 
     // Add the source to the scene
@@ -408,7 +414,7 @@ void Source::stopToBeginning() {
 
 void Source::setVolume(int volume) {
     // Set volume in dB
-    obs_fader_set_db(obs_fader, (float)volume);
+    obs_fader_set_db(obs_fader, (float) volume);
 }
 
 void Source::setAudioLock(bool audioLock) {

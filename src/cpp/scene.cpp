@@ -17,8 +17,8 @@ Scene::~Scene() {
     }
 }
 
-void Scene::addSource(std::string &sourceId, const Napi::Object &settings) {
-    auto source = new Source(sourceId, id, obs_scene, settings);
+void Scene::addSource(std::string &sourceId, Settings *studioSettings, const Napi::Object &settings) {
+    auto source = new Source(sourceId, id, obs_scene, studioSettings, settings);
     sources[sourceId] = source;
 }
 

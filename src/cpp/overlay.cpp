@@ -1,6 +1,6 @@
 #include "overlay.h"
+#include "settings.h"
 #include "utils.h"
-#include "studio.h"
 
 #define OBS_OVERLAY_START_CHANNEL 10
 
@@ -15,10 +15,10 @@ unsigned long hex_to_number(const std::string &hex) {
     }
 }
 
-Overlay *Overlay::create(Napi::Object object) {
+Overlay *Overlay::create(Napi::Object object, Settings *settings) {
     std::string t = NapiUtil::getString(object, "type");
     if (t == "cg") {
-        return new CG(object);
+        return new CG(object, settings);
     }
     return nullptr;
 }
@@ -44,7 +44,7 @@ Napi::Object Overlay::toNapiObject(Napi::Env env) {
     return object;
 }
 
-CG::CG(Napi::Object object) : Overlay(object) {
+CG::CG(Napi::Object object, Settings *settings) : Overlay(object) {
     obs_video_info ovi = {};
     obs_get_video_info(&ovi);
 
@@ -63,7 +63,7 @@ CG::CG(Napi::Object object) : Overlay(object) {
         std::string type = item.Get("type").As<Napi::String>();
         std::string itemId = id + "_item_" + std::to_string(i);
         if (type == "text") {
-            items.push_back(new CGText(itemId, item, scaleX));
+            items.push_back(new CGText(itemId, item, scaleX, settings));
         } else if (type == "image") {
             items.push_back(new CGImage(itemId, item));
         }
@@ -154,7 +154,7 @@ Napi::Object CGItem::toNapiObject(Napi::Env env) {
     return object;
 }
 
-CGText::CGText(const std::string &itemId, Napi::Object object, double scaleX) : CGItem(object) {
+CGText::CGText(const std::string &itemId, Napi::Object object, double scaleX, Settings *s) : CGItem(object) {
     content = NapiUtil::getString(object, "content");
     fontSize = NapiUtil::getInt(object, "fontSize");
     fontFamily = NapiUtil::getString(object, "fontFamily");
@@ -168,8 +168,8 @@ CGText::CGText(const std::string &itemId, Napi::Object object, double scaleX) : 
     obs_data_set_int(settings, "color2", hex_to_number(colorABGR));
     obs_data_set_string(settings, "text", content.c_str());
     obs_data_set_int(settings, "custom_width", (int) (width * scaleX));
-    if (!Studio::getFontPath().empty()) {
-        obs_data_set_string(settings, "custom_font_path", Studio::getFontPath().c_str());
+    if (!s->fontDirectory.empty()) {
+        obs_data_set_string(settings, "custom_font_path", s->fontDirectory.c_str());
     }
     obs_source = obs_source_create("text_ft2_source_v2", itemId.c_str(), settings, nullptr);
     obs_data_release(font);

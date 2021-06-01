@@ -67,6 +67,10 @@ declare namespace obs {
     }
 
     export interface Settings {
+        locale?: string;
+        fontDirectory?: string;
+        showTimestamp?: boolean;
+        timestampFontPath?: string;
         video: VideoSettings;
         audio: AudioSettings;
     }
@@ -138,7 +142,6 @@ declare namespace obs {
 
     export interface ObsNode {
         setObsPath(obsPath: string): void
-        setFontPath(fontPath: string): void
         startup(settings: Settings): void;
         shutdown(): void;
         addScene(sceneId: string): string;

@@ -4,6 +4,7 @@
 #include <mutex>
 #include <obs.h>
 #include <util/platform.h>
+#include <util/font-rasterizer.h>
 
 struct DelaySwitchData {
     std::string sceneId;
@@ -16,7 +17,6 @@ struct DelaySwitchData {
 
 std::mutex scenes_mtx;
 std::string Studio::obsPath;
-std::string Studio::fontPath;
 std::function<bool(std::function<void()>)> Studio::cef_queue_task_callback;
 
 Studio::Studio(Settings *settings) :
@@ -82,11 +82,15 @@ void Studio::startup() {
             }
         }
 
+        if (!settings->timestampFontPath.empty()) {
+            font_rasterizer_initialize(settings->timestampFontPath.c_str());
+        }
+
         // setup cef queue task callback
-        obs_data_t *settings = obs_data_create();
-        obs_data_set_int(settings, "cef_queue_task_callback", reinterpret_cast<uint64_t>(&Studio::cef_queue_task_callback));
-        obs_apply_private_data(settings);
-        obs_data_release(settings);
+        obs_data_t *cef_data = obs_data_create();
+        obs_data_set_int(cef_data, "cef_queue_task_callback", reinterpret_cast<uint64_t>(&Studio::cef_queue_task_callback));
+        obs_apply_private_data(cef_data);
+        obs_data_release(cef_data);
 
         // load modules
 #ifdef _WIN32
@@ -113,10 +117,10 @@ void Studio::startup() {
             output.second->start(obs_get_video(), obs_get_audio());
         }
 
-        restore();
-
         //start switch thread
         delay_switch_thread = std::thread(&Studio::delay_switch_callback, this);
+
+        restore();
 
     } catch (...) {
         restore();
@@ -149,6 +153,7 @@ void Studio::shutdown() {
     displays.clear();
     overlays.clear();
     outputs.clear();
+    font_rasterizer_uninitialize();
     obs_shutdown();
     if (obs_initialized()) {
         throw std::runtime_error("Failed to shutdown obs studio.");
@@ -203,7 +208,7 @@ void Studio::removeScene(std::string &sceneId) {
 
 void Studio::addSource(std::string &sceneId, std::string &sourceId, const Napi::Object &settings) {
     std::unique_lock<std::mutex> lock(scenes_mtx);
-    findScene(sceneId)->addSource(sourceId, settings);
+    findScene(sceneId)->addSource(sourceId, this->settings, settings);
 }
 
 Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
@@ -300,10 +305,6 @@ void Studio::loadModule(const std::string &binPath, const std::string &dataPath)
 
 void Studio::setObsPath(std::string &obsPath) {
     Studio::obsPath = obsPath;
-}
-
-void Studio::setFontPath(std::string &fontPath) {
-    Studio::fontPath = fontPath;
 }
 
 void Studio::setCefQueueTaskCallback(std::function<bool(std::function<void()>)> callback) {
@@ -435,10 +436,6 @@ std::string Studio::getObsPluginDataPath() {
 #else
     return obsPath + "/data/obs-plugins";
 #endif
-}
-
-std::string Studio::getFontPath() {
-    return fontPath;
 }
 
 uint64_t Studio::getSourceTimestamp(std::string &sceneId) {

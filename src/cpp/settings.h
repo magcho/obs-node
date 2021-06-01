@@ -45,6 +45,9 @@ public:
     explicit Settings(const Napi::Object& settings);
     ~Settings();
     std::string locale;
+    std::string fontDirectory;
+    bool showTimestamp;
+    std::string timestampFontPath;
     VideoSettings *video;
     AudioSettings *audio;
 };
