@@ -39,10 +39,10 @@ if not "%BUILD_CEF%" == "true" (
 )
 
 set RELEASE_TYPE=%2
-if "%RELEASE_TYPE%" == "" set RELEASE_TYPE=Release
-if not "%RELEASE_TYPE%" == "Release" (
+if "%RELEASE_TYPE%" == "" set RELEASE_TYPE=RelWithDebInfo
+if not "%RELEASE_TYPE%" == "RelWithDebInfo" (
     if not "%RELEASE_TYPE%" == "Debug" (
-        echo "The second argument should be 'Release' or 'Debug'"
+        echo "The second argument should be 'RelWithDebInfo' or 'Debug'"
         exit /B 1
     )
 )
@@ -128,4 +128,5 @@ if "%BUILD_OBS_NODE%" == "true" (
   :: Copy obs-node to prebuild
   echo "Copy %BUILD_DIR%\%RELEASE_TYPE%\obs-node.node to %PREBUILD_DIR%"
   copy /y "%BUILD_DIR%\%RELEASE_TYPE%\obs-node.node" "%PREBUILD_DIR%"
+  copy /y "%BUILD_DIR%\%RELEASE_TYPE%\obs-node.pdb" "%PREBUILD_DIR%"
 )

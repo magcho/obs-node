@@ -23,9 +23,9 @@ if [[ $BUILD_TYPE != 'all' && $BUILD_TYPE != 'cef' && $BUILD_TYPE != 'obs-studio
   exit 1
 fi
 
-RELEASE_TYPE="${2:-Release}"
-if [[ $RELEASE_TYPE != 'Release' && $RELEASE_TYPE != 'Debug' ]]; then
-  >&2 echo "The second argument should be 'Release' or 'Debug'"
+RELEASE_TYPE="${2:-RelWithDebInfo}"
+if [[ $RELEASE_TYPE != 'RelWithDebInfo' && $RELEASE_TYPE != 'Debug' ]]; then
+  >&2 echo "The second argument should be 'RelWithDebInfo' or 'Debug'"
   exit 1
 fi
 
@@ -138,8 +138,12 @@ if [[ $BUILD_TYPE == 'all' || $BUILD_TYPE == 'obs-node' ]]; then
   cmake --build build --config ${RELEASE_TYPE}
 
   # Copy obs-node to prebuild
-  echo "Copy ${BUILD_DIR}/${RELEASE_TYPE}/obs-node.node to ${PREBUILD_DIR}"
-  cp "${BUILD_DIR}/${RELEASE_TYPE}/obs-node.node" "${PREBUILD_DIR}"
+  BUILD_SUB_DIR=$RELEASE_TYPE
+  if [[ $RELEASE_TYPE == "RelWithDebInfo" ]]; then
+    BUILD_SUB_DIR="Release"
+  fi
+  echo "Copy ${BUILD_DIR}/${BUILD_SUB_DIR}/obs-node.node to ${PREBUILD_DIR}"
+  cp "${BUILD_DIR}/${BUILD_SUB_DIR}/obs-node.node" "${PREBUILD_DIR}"
 
   # Fix obs-node loader path
   if [[ "$OSTYPE" == "darwin"* ]]; then
