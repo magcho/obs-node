@@ -2,8 +2,6 @@ name: obs-node
 
 on:
   push:
-    branches:
-      - master
     tags:
       - '*'
 
