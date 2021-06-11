@@ -23,3 +23,9 @@ jobs:
       - name: Upload
         run: npm run upload
         shell: bash
+
+      - name: Upload debug symbols to sentry
+          run: |
+            npm install -g @sentry/cli
+            sentry-cli --auth-token ${{ secrets.SENTRY_TOKEN }} upload-dif --org bicbt --project cloudswitcher-desktop prebuild
+          shell: bash

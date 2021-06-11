@@ -23,3 +23,14 @@ jobs:
       - name: Upload
         run: npm run upload
         shell: bash
+
+      - name: Upload debug symbols to sentry
+        run: |
+          npm install -g @sentry/cli
+          rm -rf symbols && mkdir symbols
+          for lib in `find prebuild \( -name "*.node" -o -name "*.dylib" -o -name "*.so" \)`; do
+            echo "Generate debug information for $lib"
+            dsymutil "$lib" -o "symbols/$lib.dSYM"
+          done
+          sentry-cli --auth-token ${{ secrets.SENTRY_TOKEN }} upload-dif --org bicbt --project cloudswitcher-desktop symbols
+        shell: bash
