@@ -3,11 +3,11 @@
 #include <media-io/video-frame.h>
 #include <util/platform.h>
 
-#define VIDEO_BUFFER_SIZE 400000000 // nanoseconds
+#define VIDEO_BUFFER_SIZE 1000000000 // nanoseconds
 #define VIDEO_JUMP_THRESHOLD 2000000000 // nanoseconds
-#define AUDIO_BUFFER_SIZE 800000000 // nanoseconds
+#define AUDIO_BUFFER_SIZE 2000000000 // nanoseconds
 #define AUDIO_SMOOTH_THRESHOLD 70000000 // nanoseconds
-#define AUDIO_TIMESTAMP_BUFFER_SIZE 200000000 // nanoseconds，a litter smaller than AUDIO_BUFFER_SIZE - VIDEO_BUFFER_SIZE
+#define AUDIO_TIMESTAMP_BUFFER_SIZE 500000000 // nanoseconds，a litter smaller than AUDIO_BUFFER_SIZE - VIDEO_BUFFER_SIZE
 
 struct ts_info {
     uint64_t start;
