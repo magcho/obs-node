@@ -111,6 +111,19 @@ const sources: Source[] = [
             url: 'rtmp://host.docker.internal/live/source1',
             hardwareDecoder: false,
             playOnActive: false,
+            output: {
+                url: 'rtmp://host.docker.internal/preview/source1',
+                hardwareEnable: false,
+                width: 320,
+                height: 180,
+                keyintSec: 1,
+                rateControl: 'CBR',
+                preset: 'ultrafast',
+                profile: 'baseline',
+                tune: 'zerolatency',
+                videoBitrateKbps: 1000,
+                audioBitrateKbps: 64,
+            }
         }
     },
     {
@@ -119,14 +132,14 @@ const sources: Source[] = [
         settings: {
             name: 'source1',
             type: 'media',
-            url: 'clips/test.mp4',
+            url: 'clips/BigBuckBunny.mp4',
             hardwareDecoder: false,
             playOnActive: false,
             output: {
                 url: 'rtmp://host.docker.internal/preview/source2',
                 hardwareEnable: false,
-                width: 640,
-                height: 360,
+                width: 320,
+                height: 180,
                 keyintSec: 1,
                 rateControl: 'CBR',
                 preset: 'ultrafast',
@@ -184,6 +197,10 @@ question(async sceneId => {
     } else if (sceneId.startsWith('removeScene ')) {
         const id = sceneId.replace('removeScene ', '');
         obs.removeScene(id);
+    } else if (sceneId.startsWith('restartSource ')) {
+        const id = sceneId.replace('restartSource ', '');
+        const source = sources.find(s => s.sceneId === id);
+        obs.restartSource(source.sceneId, source.sourceId);
     } else if (sceneId.startsWith('shutdown')) {
         obs.shutdown();
     } else {
