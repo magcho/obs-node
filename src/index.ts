@@ -64,6 +64,7 @@ declare namespace obs {
         x264opts?: string;
         videoBitrateKbps: number;
         audioBitrateKbps: number;
+        delaySec: number;
     }
 
     export interface Settings {
