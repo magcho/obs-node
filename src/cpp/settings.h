@@ -37,6 +37,7 @@ public:
     std::string x264opts;
     int videoBitrateKbps;
     int audioBitrateKbps;
+    uint32_t delaySec;
 };
 
 class Settings {

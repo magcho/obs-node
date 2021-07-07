@@ -116,6 +116,11 @@ void Output::start(video_t *video, audio_t *audio) {
 
     obs_output_set_service(output, output_service);
 
+    //delay
+    if (settings->delaySec >= 0) {
+        obs_output_set_delay(output, settings->delaySec, 0);
+    }
+
     if (!obs_output_start(output)) {
         throw std::runtime_error("Failed to start output.");
     }
