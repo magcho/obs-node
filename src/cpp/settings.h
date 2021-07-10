@@ -38,6 +38,7 @@ public:
     int videoBitrateKbps;
     int audioBitrateKbps;
     uint32_t delaySec;
+    int mixers;
 };
 
 class Settings {

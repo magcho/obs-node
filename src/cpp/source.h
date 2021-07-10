@@ -58,6 +58,7 @@ private:
     void setVolume(int volume);
     void setAudioLock(bool audioLock);
     void setMonitor(bool monitor);
+    void setMixers(int mixers);
 
     void play();
     void stopToBeginning();
@@ -75,6 +76,7 @@ private:
     int volume;
     bool audioLock;
     bool monitor;
+    int mixers;
     bool showTimestamp;
     std::shared_ptr<OutputSettings> output;
 
