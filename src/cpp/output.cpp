@@ -1,10 +1,11 @@
 #include "output.h"
 #include "studio.h"
+#include <utility>
 
-Output::Output(const std::shared_ptr<OutputSettings> &settings) :
-        settings(settings),
+Output::Output(std::shared_ptr<OutputSettings> settings) :
+        settings(std::move(settings)),
         video_encoder(nullptr),
-        audio_encoder(nullptr),
+        audio_encoders(),
         output_service(nullptr),
         output(nullptr) {
 }
@@ -19,17 +20,7 @@ void Output::start(video_t *video, audio_t *audio) {
     }
 
     // video encoder
-    std::string encoder = settings->hardwareEnable ? "ffmpeg_nvenc" : "obs_x264";
-    video_encoder = obs_video_encoder_create(encoder.c_str(), "h264 enc", nullptr, nullptr);
-    if (!video_encoder) {
-        throw std::runtime_error("Failed to create video encoder.");
-    }
-
-    obs_data_t *video_encoder_settings = obs_encoder_get_settings(video_encoder);
-    if (!video_encoder_settings) {
-        throw std::runtime_error("Failed to get video encoder settings.");
-    }
-
+    obs_data_t *video_encoder_settings = obs_data_create();
     obs_data_set_int(video_encoder_settings, "keyint_sec", settings->keyintSec);
     obs_data_set_string(video_encoder_settings, "rate_control", settings->rateControl.c_str());
     obs_data_set_int(video_encoder_settings, "width", settings->width);
@@ -39,25 +30,25 @@ void Output::start(video_t *video, audio_t *audio) {
     obs_data_set_string(video_encoder_settings, "tune", settings->tune.c_str());
     obs_data_set_string(video_encoder_settings, "x264opts", settings->x264opts.c_str());
     obs_data_set_int(video_encoder_settings, "bitrate", settings->videoBitrateKbps);
+    video_encoder = obs_video_encoder_create(settings->hardwareEnable ? "ffmpeg_nvenc" : "obs_x264", "h264 enc", video_encoder_settings, nullptr);
 
-    obs_encoder_update(video_encoder, video_encoder_settings);
     obs_encoder_set_scaled_size(video_encoder, settings->width, settings->height);
     obs_encoder_set_video(video_encoder, video);
 
     // audio encoder
-    audio_encoder = obs_audio_encoder_create("ffmpeg_aac", "aac enc", nullptr, 0, nullptr);
-    if (!audio_encoder) {
-        throw std::runtime_error("Failed to create audio encoder.");
+    if (settings->mixers < 1 || settings->mixers > MAX_AUDIO_MIXES) {
+        throw std::runtime_error("Output mixers should between 1 and " + std::to_string(MAX_AUDIO_MIXES));
     }
-
-    obs_data_t *audio_encoder_settings = obs_encoder_get_settings(audio_encoder);
-    if (!audio_encoder_settings) {
-        throw std::runtime_error("Failed to get audio encoder settings.");
-    }
-
+    obs_data_t *audio_encoder_settings = obs_data_create();
     obs_data_set_int(audio_encoder_settings, "bitrate", settings->audioBitrateKbps);
-    obs_encoder_update(audio_encoder, audio_encoder_settings);
-    obs_encoder_set_audio(audio_encoder, audio);
+    for (int i = 0; i < settings->mixers; ++i) {
+        auto audio_encoder = obs_audio_encoder_create("ffmpeg_aac", "aac enc", audio_encoder_settings, i, nullptr);
+        if (!audio_encoder) {
+            throw std::runtime_error("Failed to create audio encoder.");
+        }
+        audio_encoders.push_back(audio_encoder);
+        obs_encoder_set_audio(audio_encoder, audio);
+    }
 
     // output service
     std::string server;
@@ -110,8 +101,8 @@ void Output::start(video_t *video, audio_t *audio) {
         obs_output_set_video_encoder(output, video_encoder);
     }
 
-    if (audio_encoder) {
-        obs_output_set_audio_encoder(output, audio_encoder, 0);
+    for (size_t i = 0; i < audio_encoders.size(); ++i) {
+        obs_output_set_audio_encoder(output, audio_encoders[i], i);
     }
 
     obs_output_set_service(output, output_service);
@@ -130,7 +121,9 @@ void Output::stop() {
     if (output) {
         obs_output_stop(output);
         obs_encoder_release(video_encoder);
-        obs_encoder_release(audio_encoder);
+        for (auto & audio_encoder : audio_encoders) {
+            obs_encoder_release(audio_encoder);
+        }
         obs_output_release(output);
         obs_service_release(output_service);
     }

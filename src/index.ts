@@ -64,7 +64,8 @@ declare namespace obs {
         x264opts?: string;
         videoBitrateKbps: number;
         audioBitrateKbps: number;
-        delaySec: number;
+        delaySec?: number;
+        mixers?: number;
     }
 
     export interface Settings {
@@ -89,6 +90,7 @@ declare namespace obs {
         asyncUnbuffered?: boolean;
         bufferingMb?: number;
         reconnectDelaySec?: number;
+        mixers?: number;
         output?: OutputSettings | null;
     }
 

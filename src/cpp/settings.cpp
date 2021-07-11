@@ -27,7 +27,8 @@ OutputSettings::OutputSettings(const Napi::Object &outputSettings) {
     x264opts = NapiUtil::getStringOptional(outputSettings, "x264opts").value_or("");
     videoBitrateKbps = NapiUtil::getInt(outputSettings, "videoBitrateKbps");
     audioBitrateKbps = NapiUtil::getInt(outputSettings, "audioBitrateKbps");
-    delaySec = NapiUtil::getInt(outputSettings, "delaySec");
+    delaySec = NapiUtil::getIntOptional(outputSettings, "delaySec").value_or(0);
+    mixers = NapiUtil::getIntOptional(outputSettings, "mixers").value_or(1);
 }
 
 bool OutputSettings::equals(const std::shared_ptr<OutputSettings> &settings) {
@@ -43,7 +44,8 @@ bool OutputSettings::equals(const std::shared_ptr<OutputSettings> &settings) {
             x264opts == settings->x264opts &&
             videoBitrateKbps == settings->videoBitrateKbps &&
             audioBitrateKbps == settings->audioBitrateKbps &&
-            delaySec == settings->delaySec;
+            delaySec == settings->delaySec &&
+            mixers == settings->mixers;
 }
 
 Settings::Settings(const Napi::Object &settings) :

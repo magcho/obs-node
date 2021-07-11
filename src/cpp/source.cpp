@@ -8,6 +8,8 @@ extern "C" {
 #include "stb/stb_image_write.h"
 }
 
+#define DEFAULT_AUDIO_MIXER 1 // first audio track
+
 struct ScreenshotContext {
     Source *source;
     std::function<void(uint8_t *, int)> callback;
@@ -132,6 +134,7 @@ Source::Source(std::string &id, std::string &sceneId, obs_scene_t *obs_scene, Se
     volume = NapiUtil::getIntOptional(settings, "volume").value_or(0);
     audioLock = NapiUtil::getBooleanOptional(settings, "audioLock").value_or(false);
     monitor = NapiUtil::getBooleanOptional(settings, "monitor").value_or(false);
+    mixers = NapiUtil::getIntOptional(settings, "mixers").value_or(DEFAULT_AUDIO_MIXER);
     showTimestamp = studioSettings->showTimestamp;
     if (!settings.Get("output").IsUndefined() && !settings.Get("output").IsNull()) {
         output = std::make_shared<OutputSettings>(settings.Get("output").As<Napi::Object>());
@@ -220,6 +223,13 @@ void Source::update(const Napi::Object &settings) {
             setMonitor(monitor);
         }
     }
+    if (!NapiUtil::isUndefined(settings, "mixers")) {
+        auto value = NapiUtil::getInt(settings, "mixers");
+        if (value != mixers) {
+            mixers = value;
+            setMixers(mixers);
+        }
+    }
     if (!NapiUtil::isUndefined(settings, "output")) {
         if (settings.Get("output").IsNull()) {
             if (output) {
@@ -266,6 +276,7 @@ Napi::Object Source::toNapiObject(Napi::Env env) {
     result.Set("volume", volume);
     result.Set("monitor", monitor);
     result.Set("audioLock", audioLock);
+    result.Set("mixers", mixers);
     return result;
 }
 
@@ -344,6 +355,7 @@ void Source::start() {
     setVolume(volume);
     setAudioLock(audioLock);
     setMonitor(monitor);
+    setMixers(mixers);
 
     signal_handler_t *handler = obs_source_get_signal_handler(obs_source);
     signal_handler_connect(handler, "activate", source_activate_callback, this);
@@ -430,5 +442,11 @@ void Source::setMonitor(bool monitor) {
         } else {
             obs_source_set_monitoring_type(obs_source, OBS_MONITORING_TYPE_NONE);
         }
+    }
+}
+
+void Source::setMixers(int mixers) {
+    if (obs_source) {
+        obs_source_set_audio_mixers(obs_source, mixers);
     }
 }
