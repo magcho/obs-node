@@ -130,7 +130,7 @@ const sources: Source[] = [
         sceneId: 'scene2',
         sourceId: 'source2',
         settings: {
-            name: 'source1',
+            name: 'source2',
             type: 'media',
             url: 'clips/BigBuckBunny.mp4',
             hardwareDecoder: false,
@@ -203,6 +203,9 @@ question(async sceneId => {
         obs.restartSource(source.sceneId, source.sourceId);
     } else if (sceneId.startsWith('shutdown')) {
         obs.shutdown();
+    } else if (sceneId.startsWith('removeOutput')) {
+        const outputId = sceneId.replace('removeOutput ', '');
+        obs.removeOutput(outputId);
     } else {
         obs.switchToScene(sceneId, 'cut_transition', 1000);
     }
