@@ -7,7 +7,8 @@ Output::Output(std::shared_ptr<OutputSettings> settings) :
         video_encoder(nullptr),
         audio_encoders(),
         output_service(nullptr),
-        output(nullptr) {
+        output(nullptr),
+        recorder_output(nullptr) {
 }
 
 std::shared_ptr<OutputSettings> Output::getSettings() {
@@ -107,7 +108,7 @@ void Output::start(video_t *video, audio_t *audio) {
 
     obs_output_set_service(output, output_service);
 
-    //delay
+    // delay
     if (settings->delaySec >= 0) {
         obs_output_set_delay(output, settings->delaySec, 0);
     }
@@ -115,16 +116,48 @@ void Output::start(video_t *video, audio_t *audio) {
     if (!obs_output_start(output)) {
         throw std::runtime_error("Failed to start output.");
     }
+
+    // recorder
+    if (settings->recorder) {
+        if (settings->recordFilePath.empty()) {
+            throw std::runtime_error("Record path can't be empty");
+        }
+        obs_data_t *recorder_settings = obs_data_create();
+        obs_data_set_string(recorder_settings, "path", settings->recordFilePath.c_str());
+        obs_data_set_string(recorder_settings, "muxer_settings", "movflags=frag_keyframe min_frag_duration=4000000");
+#ifdef _WIN32
+        obs_data_set_string(recorder_settings, "exec_path", (Studio::getObsBinPath() + "\\obs-ffmpeg-mux.exe").c_str());
+#else
+        obs_data_set_string(recorder_settings, "exec_path", (Studio::getObsBinPath() + "/obs-ffmpeg-mux").c_str());
+#endif
+        recorder_output = obs_output_create("ffmpeg_muxer", "recorder_output", recorder_settings, nullptr);
+        if (!recorder_output) {
+            throw std::runtime_error("Failed to create recorder output");
+        }
+        obs_output_set_video_encoder(recorder_output, video_encoder);
+        for (size_t i = 0; i < audio_encoders.size(); ++i) {
+            obs_output_set_audio_encoder(recorder_output, audio_encoders[i], i);
+        }
+        if (!obs_output_start(recorder_output)) {
+            throw std::runtime_error("Failed to start recorder output");
+        }
+    }
 }
 
 void Output::stop() {
     if (output) {
         obs_output_stop(output);
+        if (recorder_output) {
+            obs_output_stop(recorder_output);
+        }
         obs_encoder_release(video_encoder);
         for (auto & audio_encoder : audio_encoders) {
             obs_encoder_release(audio_encoder);
         }
         obs_output_release(output);
         obs_service_release(output_service);
+        if (recorder_output) {
+            obs_output_release(recorder_output);
+        }
     }
 }

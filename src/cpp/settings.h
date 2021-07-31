@@ -39,6 +39,8 @@ public:
     int audioBitrateKbps;
     uint32_t delaySec;
     int mixers;
+    bool recorder;
+    std::string recordFilePath;
 };
 
 class Settings {
