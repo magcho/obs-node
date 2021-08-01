@@ -66,7 +66,7 @@ declare namespace obs {
         audioBitrateKbps: number;
         delaySec?: number;
         mixers?: number;
-        recorder?: boolean;
+        recordEnable?: boolean;
         recordFilePath?: string;
     }
 

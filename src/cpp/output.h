@@ -17,5 +17,5 @@ private:
     std::vector<obs_encoder_t *> audio_encoders;
     obs_service_t *output_service;
     obs_output_t *output;
-    obs_output_t *recorder_output;
+    obs_output_t *record_output;
 };

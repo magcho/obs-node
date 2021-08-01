@@ -171,9 +171,8 @@ void Studio::addOutput(const std::string &outputId, std::shared_ptr<OutputSettin
 
 void Studio::updateOutput(const std::string &outputId, std::shared_ptr<OutputSettings> settings) {
     if (outputs.find(outputId) == outputs.end()) {
-        throw std::logic_error("Can't find output: " + outputId);
-    }
-    if (!outputs[outputId]->getSettings()->equals(settings)) {
+        addOutput(outputId, settings);
+    } else if (!outputs[outputId]->getSettings()->equals(settings)) {
         removeOutput(outputId);
         addOutput(outputId, settings);
     }
@@ -181,7 +180,7 @@ void Studio::updateOutput(const std::string &outputId, std::shared_ptr<OutputSet
 
 void Studio::removeOutput(const std::string &outputId) {
     if (outputs.find(outputId) == outputs.end()) {
-        throw std::logic_error("Can't find output: " + outputId);
+        return;
     }
     auto output = outputs[outputId];
     output->stop();
