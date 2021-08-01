@@ -29,7 +29,7 @@ OutputSettings::OutputSettings(const Napi::Object &outputSettings) {
     audioBitrateKbps = NapiUtil::getInt(outputSettings, "audioBitrateKbps");
     delaySec = NapiUtil::getIntOptional(outputSettings, "delaySec").value_or(0);
     mixers = NapiUtil::getIntOptional(outputSettings, "mixers").value_or(1);
-    recorder = NapiUtil::getBooleanOptional(outputSettings, "recorder").value_or(false);
+    recordEnable = NapiUtil::getBooleanOptional(outputSettings, "recordEnable").value_or(false);
     recordFilePath = NapiUtil::getStringOptional(outputSettings, "recordFilePath").value_or("");
 }
 
@@ -48,7 +48,7 @@ bool OutputSettings::equals(const std::shared_ptr<OutputSettings> &settings) {
             audioBitrateKbps == settings->audioBitrateKbps &&
             delaySec == settings->delaySec &&
             mixers == settings->mixers &&
-            recorder == settings->recorder &&
+            recordEnable == settings->recordEnable &&
             recordFilePath == settings->recordFilePath;
 }
 

@@ -8,7 +8,7 @@ Output::Output(std::shared_ptr<OutputSettings> settings) :
         audio_encoders(),
         output_service(nullptr),
         output(nullptr),
-        recorder_output(nullptr) {
+        record_output(nullptr) {
 }
 
 std::shared_ptr<OutputSettings> Output::getSettings() {
@@ -117,10 +117,10 @@ void Output::start(video_t *video, audio_t *audio) {
         throw std::runtime_error("Failed to start output.");
     }
 
-    // recorder
-    if (settings->recorder) {
+    // record
+    if (settings->recordEnable) {
         if (settings->recordFilePath.empty()) {
-            throw std::runtime_error("Record path can't be empty");
+            throw std::runtime_error("Record file path can't be empty");
         }
         obs_data_t *recorder_settings = obs_data_create();
         obs_data_set_string(recorder_settings, "path", settings->recordFilePath.c_str());
@@ -130,16 +130,16 @@ void Output::start(video_t *video, audio_t *audio) {
 #else
         obs_data_set_string(recorder_settings, "exec_path", (Studio::getObsBinPath() + "/obs-ffmpeg-mux").c_str());
 #endif
-        recorder_output = obs_output_create("ffmpeg_muxer", "recorder_output", recorder_settings, nullptr);
-        if (!recorder_output) {
-            throw std::runtime_error("Failed to create recorder output");
+        record_output = obs_output_create("ffmpeg_muxer", "record_output", recorder_settings, nullptr);
+        if (!record_output) {
+            throw std::runtime_error("Failed to create record output");
         }
-        obs_output_set_video_encoder(recorder_output, video_encoder);
+        obs_output_set_video_encoder(record_output, video_encoder);
         for (size_t i = 0; i < audio_encoders.size(); ++i) {
-            obs_output_set_audio_encoder(recorder_output, audio_encoders[i], i);
+            obs_output_set_audio_encoder(record_output, audio_encoders[i], i);
         }
-        if (!obs_output_start(recorder_output)) {
-            throw std::runtime_error("Failed to start recorder output");
+        if (!obs_output_start(record_output)) {
+            throw std::runtime_error("Failed to start record output");
         }
     }
 }
@@ -147,8 +147,8 @@ void Output::start(video_t *video, audio_t *audio) {
 void Output::stop() {
     if (output) {
         obs_output_stop(output);
-        if (recorder_output) {
-            obs_output_stop(recorder_output);
+        if (record_output) {
+            obs_output_stop(record_output);
         }
         obs_encoder_release(video_encoder);
         for (auto & audio_encoder : audio_encoders) {
@@ -156,8 +156,8 @@ void Output::stop() {
         }
         obs_output_release(output);
         obs_service_release(output_service);
-        if (recorder_output) {
-            obs_output_release(recorder_output);
+        if (record_output) {
+            obs_output_release(record_output);
         }
     }
 }
