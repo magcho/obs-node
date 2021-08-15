@@ -53,6 +53,7 @@ public:
     bool showTimestamp;
     std::string timestampFontPath;
     uint32_t timestampFontHeight;
+    uint32_t multiSourceSyncThreshold;
     VideoSettings *video;
     AudioSettings *audio;
 };

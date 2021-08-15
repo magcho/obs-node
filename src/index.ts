@@ -76,6 +76,7 @@ declare namespace obs {
         showTimestamp?: boolean;
         timestampFontPath?: string;
         timestampFontHeight?: number;
+        multiSourceSyncThreshold?: number;
         video: VideoSettings;
         audio: AudioSettings;
     }

@@ -61,6 +61,7 @@ Settings::Settings(const Napi::Object &settings) :
     showTimestamp = NapiUtil::getBooleanOptional(settings, "showTimestamp").value_or(false);
     timestampFontPath = NapiUtil::getStringOptional(settings, "timestampFontPath").value_or("");
     timestampFontHeight = NapiUtil::getIntOptional(settings, "timestampFontHeight").value_or(40);
+    multiSourceSyncThreshold = NapiUtil::getIntOptional(settings, "multiSourceSyncThreshold").value_or(40);
 
     // video settings
     auto videoSettings = settings.Get("video").As<Napi::Object>();
