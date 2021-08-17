@@ -24,6 +24,7 @@ const oss = new OSS({
     accessKeyId: accessKey,
     accessKeySecret: secretKey,
     bucket: bucket,
+    timeout: 3600000,
 });
 
 (async () => {
