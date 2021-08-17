@@ -3,6 +3,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <deque>
+#include <unistd.h>
 
 #define TRY_METHOD(method) \
     try { \
@@ -91,3 +92,13 @@ public:
         return rc;
     }
 };
+
+static inline std::string getCurrentPath() {
+    char path[256] = {};
+    getcwd(path, 256);
+    return std::string(path);
+}
+
+static inline void setCurrentPath(const std::string& path) {
+    chdir(path.c_str());
+}

@@ -30,14 +30,14 @@ Studio::Studio(Settings *settings) :
 }
 
 void Studio::startup() {
-    auto currentWorkDir = std::filesystem::current_path();
+    auto currentWorkDir = getCurrentPath();
 
     // Change work directory to obs bin path to setup obs properly.
     blog(LOG_INFO, "Set work directory to %s for loading obs data", getObsBinPath().c_str());
-    std::filesystem::current_path(getObsBinPath());
+    setCurrentPath(getObsBinPath());
 
     auto restore = [&] {
-        std::filesystem::current_path(currentWorkDir);
+        setCurrentPath(currentWorkDir);
     };
 
     try {
