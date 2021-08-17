@@ -24,17 +24,16 @@ const oss = new OSS({
     accessKeyId: accessKey,
     accessKeySecret: secretKey,
     bucket: bucket,
-    timeout: 3600000,
+    timeout: 300000,
 });
 
 (async () => {
-    // create prebuild tar
+    console.log(`Create prebuild tar file`);
     const prebuildFolder = path.resolve(__dirname, '../../prebuild');
     await pipeline(tar.pack(prebuildFolder), fs.createWriteStream(tarFileName));
 
-    // upload tar file to oss
-    await oss.put(`obs-node/${tarFileName}`, tarFileName);
+    console.log(`Upload tar file to OSS`);
+    await oss.multipartUpload(`obs-node/${tarFileName}`, tarFileName, {});
 
-    // delete tar file
     fs.unlinkSync(tarFileName);
 })();
