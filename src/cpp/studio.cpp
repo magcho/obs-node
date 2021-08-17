@@ -1,6 +1,5 @@
 #include "studio.h"
 #include "utils.h"
-#include <filesystem>
 #include <mutex>
 #include <obs.h>
 #include <util/platform.h>
