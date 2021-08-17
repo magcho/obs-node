@@ -3,7 +3,16 @@
 #include <mutex>
 #include <condition_variable>
 #include <deque>
-#include <unistd.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#define cwd _getcwd
+#define cd _chdir
+#else
+#include "unistd.h"
+#define cwd getcwd
+#define cd chdir
+#endif
 
 #define TRY_METHOD(method) \
     try { \
@@ -95,10 +104,10 @@ public:
 
 static inline std::string getCurrentPath() {
     char path[256] = {};
-    getcwd(path, 256);
+    cwd(path, 256);
     return std::string(path);
 }
 
 static inline void setCurrentPath(const std::string& path) {
-    chdir(path.c_str());
+    cd(path.c_str());
 }
