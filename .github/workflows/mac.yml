@@ -8,6 +8,10 @@ on:
 env:
   GITHUB_USER: Mengli619
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  OSS_REGION: ${{ secrets.OSS_REGION }}
+  OSS_ACCESS_KEY: ${{ secrets.OSS_ACCESS_KEY }}
+  OSS_SECRET_KEY: ${{ secrets.OSS_SECRET_KEY }}
+  OSS_BUCKET: cbt-cloudswitcher-prod
 
 jobs:
   build-mac:

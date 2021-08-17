@@ -1,5 +1,4 @@
 import * as os from 'os';
-import * as github from 'github-from-package';
 import * as path from 'path';
 import * as fs from 'fs';
 import axios from 'axios';
@@ -7,14 +6,15 @@ import * as tar from 'tar-fs';
 import * as stream from 'stream';
 import * as util from 'util';
 
+const DOWNLOAD_BASE_URL = 'https://cbt-cloudswitcher-prod.oss-cn-beijing.aliyuncs.com/obs-node';
+
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8'));
 const pipeline = util.promisify(stream.pipeline);
 
 function getDownloadUrl() {
     const version = packageJson.version;
     const platform = os.platform();
-    const url = github(packageJson);
-    return `${url}//releases/download/${version}/prebuild-${platform}-${version}.tar.gz`;
+    return `${DOWNLOAD_BASE_URL}/prebuild-${platform}-${version}.tar.gz`;
 }
 
 async function download(url: string, fileName: string) {
