@@ -25,6 +25,7 @@ Studio::Studio(Settings *settings) :
           delay_switch_thread(),
           delay_switch_queue(),
           stop(false),
+          tBarActive(false),
           overlays() {
 }
 
@@ -217,13 +218,14 @@ Source *Studio::findSource(std::string &sceneId, std::string &sourceId) {
     return findScene(sceneId)->findSource(sourceId);
 }
 
-void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp) {
+void Studio::switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp,
+                           int tBarValue) {
     if (timestamp > 0) {
         auto data = new DelaySwitchData{
-            .sceneId = sceneId,
-            .transitionType = transitionType,
-            .transitionMs = transitionMs,
-            .timestamp = timestamp,
+                .sceneId = sceneId,
+                .transitionType = transitionType,
+                .transitionMs = transitionMs,
+                .timestamp = timestamp,
         };
         delay_switch_queue.push(data);
         return;
@@ -255,24 +257,46 @@ void Studio::switchToScene(std::string &sceneId, std::string &transitionType, in
     }
 
     obs_source_t *transition = transitions[transitionType];
-    if (currentScene) {
-        obs_transition_set(transition, obs_scene_get_source(currentScene->getScene()));
+
+    if (tBarValue == 0) {
+        if (currentScene) {
+            obs_transition_set(transition, obs_scene_get_source(currentScene->getScene()));
+        }
+        obs_set_output_source(0, transition);
+
+       bool ret = obs_transition_start(
+                transition,
+                OBS_TRANSITION_MODE_AUTO,
+                transitionMs,
+                obs_scene_get_source(next->getScene())
+        );
+
+        if (!ret) {
+            throw std::runtime_error("Failed to start transition.");
+        }
+
+        currentScene = next;
+        return;
+    } else {
+        if (!tBarActive) {
+            obs_transition_set_manual_torque(transition, 8.0f, 0.05f);
+
+            if (currentScene) {
+                obs_transition_set(transition, obs_scene_get_source(currentScene->getScene()));
+            }
+
+            obs_set_output_source(0, transition);
+            obs_transition_start(transition, OBS_TRANSITION_MODE_MANUAL, transitionMs,
+                                 obs_scene_get_source(next->getScene()));
+            tBarActive = true;
+        }
+        obs_transition_set_manual_time(transition, (float)tBarValue / 100);
+
+        if (tBarValue == 100 || tBarValue == 1) {
+            tBarActive = false;
+            currentScene = next;
+        }
     }
-
-    obs_set_output_source(0, transition);
-
-    bool ret = obs_transition_start(
-            transition,
-            OBS_TRANSITION_MODE_AUTO,
-            transitionMs,
-            obs_scene_get_source(next->getScene())
-    );
-
-    if (!ret) {
-        throw std::runtime_error("Failed to start transition.");
-    }
-
-    currentScene = next;
 }
 
 void Studio::delay_switch_callback(void *param) {
