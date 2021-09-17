@@ -139,7 +139,8 @@ Napi::Value switchToScene(const Napi::CallbackInfo &info) {
     std::string transitionType = info[1].As<Napi::String>();
     int transitionMs = info[2].As<Napi::Number>();
     uint64_t timestamp = info[3].IsUndefined() ? 0 : std::stoull((std::string)info[3].As<Napi::String>());
-    TRY_METHOD(studio->switchToScene(sceneId, transitionType, transitionMs, timestamp))
+    int tBarValue = info[4].IsUndefined() ? 0 : info[4].As<Napi::Number>();
+    TRY_METHOD(studio->switchToScene(sceneId, transitionType, transitionMs, timestamp, tBarValue))
     return info.Env().Undefined();
 }
 

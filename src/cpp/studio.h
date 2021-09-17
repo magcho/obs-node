@@ -41,7 +41,7 @@ public:
 
     Source *findSource(std::string &sceneId, std::string &sourceId);
 
-    void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp);
+    void switchToScene(std::string &sceneId, std::string &transitionType, int transitionMs, uint64_t timestamp, int tBarValue = 0);
 
     void createDisplay(std::string &displayName, void *parentHandle, int scaleFactor, const std::vector<std::string> &sourceIds);
 
@@ -84,4 +84,5 @@ private:
     volatile bool stop;
     std::thread delay_switch_thread;
     queue<DelaySwitchData *> delay_switch_queue;
+    bool tBarActive;
 };
