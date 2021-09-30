@@ -20,6 +20,7 @@ private:
     static void displayCallback(void *displayPtr, uint32_t cx, uint32_t cy);
     void addSources(const std::vector<std::string> &sourceIds);
     void clearSources();
+    void SystemWorker();
 
     void *parentHandle; // For MacOS is NSView**, For Windows is HWND*
     int scaleFactor;
@@ -31,4 +32,5 @@ private:
     int width = 0;
     int height = 0;
     std::mutex sources_mtx;
+    std::thread worker;
 };

@@ -54,15 +54,15 @@ void registerDisplayWindowClass() {
 }
 
 void *createDisplayWindow(void *parentHandle) {
-    DWORD windowStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE;
+    DWORD windowStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_NOPARENTNOTIFY;
     HWND parentHandleHWND = *static_cast<HWND*>(parentHandle);
     registerDisplayWindowClass();
     HWND windowHandle = CreateWindowEx(
             windowStyle,
             DISPLAY_WINDOW_CLASS,
             "Display Window",
-            WS_VISIBLE | WS_CHILD,
-            0, 0, 1, 1,
+            WS_VISIBLE | WS_POPUP| WS_CHILD,
+            0, 0, 640, 360,
             parentHandleHWND,
             NULL,
             NULL,

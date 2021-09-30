@@ -3,19 +3,161 @@
 
 #include "display.h"
 #include "./platform/platform.h"
+#ifdef _WIN32
+#include <Windows.h>
+#include <Dwmapi.h>
+#endif
+
+#ifdef _WIN32
+enum class SystemWorkerMessage : uint32_t
+{
+    CreateWindow  = WM_USER + 0,
+    DestroyWindow = WM_USER + 1,
+    StopThread    = WM_USER + 2,
+};
+struct message_answer
+{
+    HANDLE      event;
+    bool        called  = false;
+    bool        success = false;
+    DWORD       errorCode;
+    std::string errorMessage;
+
+    message_answer()
+    {
+        event = CreateSemaphore(NULL, 0, INT32_MAX, NULL);
+    }
+    ~message_answer()
+    {
+        CloseHandle(event);
+    }
+
+    bool wait()
+    {
+        return WaitForSingleObject(event, 1) == WAIT_OBJECT_0;
+    }
+
+    bool try_wait()
+    {
+        return WaitForSingleObject(event, 0) == WAIT_OBJECT_0;
+    }
+
+    void signal()
+    {
+        ReleaseSemaphore(event, 1, NULL);
+    }
+};
+
+struct CreateWindowMessageQuestion
+{
+    HWND     parentWindow;
+    uint32_t width, height;
+};
+
+struct CreateWindowMessageAnswer : message_answer
+{
+    HWND windowHandle;
+};
+
+struct DestroyWindowMessageQuestion
+{
+    HWND window;
+};
+
+struct DestroyWindowMessageAnswer : message_answer
+{};
+
+void Display::SystemWorker() {
+    MSG message;
+    PeekMessage(&message, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+    bool keepRunning = true;
+
+    do {
+        BOOL gotMessage = GetMessage(&message, NULL, 0, 0);
+        if (gotMessage == 0) {
+            continue;
+        }
+        if (gotMessage == -1) {
+            break; // Some sort of error.
+        }
+
+        if (message.hwnd != NULL) {
+            TranslateMessage(&message);
+            DispatchMessage(&message);
+            continue;
+        }
+
+        switch ((SystemWorkerMessage)message.message) {
+            case SystemWorkerMessage::CreateWindow: {
+                CreateWindowMessageQuestion* question = reinterpret_cast<CreateWindowMessageQuestion*>(message.wParam);
+                CreateWindowMessageAnswer*   answer   = reinterpret_cast<CreateWindowMessageAnswer*>(message.lParam);
+                answer->windowHandle = (HWND)createDisplayWindow(question->parentWindow);
+                answer->success = true;
+                answer->called = true;
+                answer->signal();
+                break;
+            }
+            case SystemWorkerMessage::DestroyWindow: {
+                DestroyWindowMessageQuestion* question = reinterpret_cast<DestroyWindowMessageQuestion*>(message.wParam);
+                DestroyWindowMessageAnswer*   answer   = reinterpret_cast<DestroyWindowMessageAnswer*>(message.lParam);
+                destroyWindow(question->window);
+                answer->success = true;
+                answer->called = true;
+                answer->signal();
+                break;
+            }
+            case SystemWorkerMessage::StopThread: {
+                keepRunning = false;
+                break;
+            }
+        }
+    } while (keepRunning);
+}
+#endif
 
 Display::Display(void *parentHandle, int scaleFactor, const std::vector<std::string> &sourceIds) {
     this->parentHandle = parentHandle;
     this->scaleFactor = scaleFactor;
 
-    // create window for display
+#ifdef WIN32
+    worker = std::thread(std::bind(&Display::SystemWorker, this));
+
+    CreateWindowMessageQuestion question;
+    CreateWindowMessageAnswer   answer;
+
+    question.parentWindow = (HWND)this->parentHandle;
+    question.width        = 640;
+    question.height       = 360;
+    while (!PostThreadMessage(
+            GetThreadId(worker.native_handle()),
+            (UINT)SystemWorkerMessage::CreateWindow,
+            reinterpret_cast<intptr_t>(&question),
+            reinterpret_cast<intptr_t>(&answer))) {
+        Sleep(0);
+    }
+
+    if (!answer.try_wait()) {
+        while (!answer.wait()) {
+            if (answer.called)
+                break;
+            Sleep(0);
+        }
+    }
+
+    if (!answer.success) {
+        throw std::system_error(answer.errorCode, std::system_category(), answer.errorMessage);
+    }
+
+    this->windowHandle = answer.windowHandle;
+#elif __APPLE__
     this->windowHandle = createDisplayWindow(this->parentHandle);
+#endif
 
     // create display
     gs_init_data gs_init_data = {};
     gs_init_data.adapter = 0;
-    gs_init_data.cx = 1;
-    gs_init_data.cy = 1;
+    gs_init_data.cx = 640;
+    gs_init_data.cy = 360;
     gs_init_data.num_backbuffers = 1;
     gs_init_data.format = GS_RGBA;
     gs_init_data.zsformat = GS_ZS_NONE;
@@ -43,7 +185,37 @@ Display::~Display() {
     if (obs_display) {
         obs_display_destroy(obs_display);
     }
+
+#ifdef _WIN32
+    DestroyWindowMessageQuestion question;
+    DestroyWindowMessageAnswer   answer;
+
+    question.window = reinterpret_cast<HWND>(this->windowHandle);
+    PostThreadMessage(
+            GetThreadId(worker.native_handle()),
+            (UINT)SystemWorkerMessage::DestroyWindow,
+            reinterpret_cast<intptr_t>(&question),
+            reinterpret_cast<intptr_t>(&answer));
+
+    if (!answer.try_wait()) {
+        while (!answer.wait()) {
+            if (answer.called)
+                break;
+            Sleep(0);
+        }
+    }
+
+    if (!answer.success) {
+        throw std::system_error(answer.errorCode, std::system_category(), answer.errorMessage);
+    }
+
+    PostThreadMessage(GetThreadId(worker.native_handle()), (UINT)SystemWorkerMessage::StopThread, NULL, NULL);
+
+    if (worker.joinable())
+        worker.join();
+#elif __APPLE__
     destroyWindow(windowHandle);
+#endif
 }
 
 void Display::move(int x, int y, int width, int height) {
