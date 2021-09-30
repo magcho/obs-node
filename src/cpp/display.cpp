@@ -156,8 +156,8 @@ Display::Display(void *parentHandle, int scaleFactor, const std::vector<std::str
     // create display
     gs_init_data gs_init_data = {};
     gs_init_data.adapter = 0;
-    gs_init_data.cx = 640;
-    gs_init_data.cy = 360;
+    gs_init_data.cx = 1;
+    gs_init_data.cy = 1;
     gs_init_data.num_backbuffers = 1;
     gs_init_data.format = GS_RGBA;
     gs_init_data.zsformat = GS_ZS_NONE;
