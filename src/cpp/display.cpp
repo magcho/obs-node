@@ -126,8 +126,8 @@ Display::Display(void *parentHandle, int scaleFactor, const std::vector<std::str
     CreateWindowMessageAnswer   answer;
 
     question.parentWindow = (HWND)this->parentHandle;
-    question.width        = 640;
-    question.height       = 360;
+    question.width        = 1;
+    question.height       = 1;
     while (!PostThreadMessage(
             GetThreadId(worker.native_handle()),
             (UINT)SystemWorkerMessage::CreateWindow,

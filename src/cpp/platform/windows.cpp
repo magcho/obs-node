@@ -62,7 +62,7 @@ void *createDisplayWindow(void *parentHandle) {
             DISPLAY_WINDOW_CLASS,
             "Display Window",
             WS_VISIBLE | WS_POPUP| WS_CHILD,
-            0, 0, 640, 360,
+            0, 0, 1, 1,
             NULL,
             NULL,
             NULL,
