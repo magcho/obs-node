@@ -52,7 +52,7 @@ void Studio::startup() {
             memset(&ovi, 0, sizeof(ovi));
             ovi.adapter = 0;
 #ifdef _WIN32
-            ovi.graphics_module = "libobs-opengl.dll";
+            ovi.graphics_module = "libobs-d3d11.dll";
 #else
             ovi.graphics_module = "libobs-opengl.so";
 #endif
@@ -67,7 +67,12 @@ void Studio::startup() {
 
             int result = obs_reset_video(&ovi);
             if (result != OBS_VIDEO_SUCCESS) {
-                throw std::runtime_error("Failed to reset video");
+                // Try OpenGL if DirectX fails on windows
+                ovi.graphics_module = "libobs-opengl.dll";
+                result = obs_reset_video(&ovi);
+                if (result != OBS_VIDEO_SUCCESS) {
+                    throw std::runtime_error("Failed to reset video");
+                }
             }
         }
 
