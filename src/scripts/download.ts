@@ -28,7 +28,7 @@ async function download(url: string, fileName: string) {
             Accept: 'application/octet-stream',
         },
     });
-    response.data.pipe(writer);
+    (response.data as any).pipe(writer);
     return new Promise((resolve, reject) => {
         writer.on('finish', resolve);
         writer.on('error', reject);

@@ -2,6 +2,7 @@
 
 #include "settings.h"
 #include <string>
+#include <thread>
 #include <obs.h>
 #include <graphics/graphics.h>
 

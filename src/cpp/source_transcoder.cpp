@@ -170,6 +170,9 @@ void SourceTranscoder::video_output_callback(void *param) {
         } else {
             count = (int) ((os_gettime_ns() - transcoder->last_video_time) / interval);
             video_time = transcoder->last_video_time + interval * count;
+            if (count > 1) {
+                blog(LOG_INFO, "[%s] video lagged: %d", transcoder->source->id.c_str(), count);
+            }
         }
 
         transcoder->frame_buf_mutex.lock();
@@ -178,11 +181,10 @@ void SourceTranscoder::video_output_callback(void *param) {
             transcoder->timing_mutex.lock();
             transcoder->timing_adjust = video_time - frame->timestamp;
             transcoder->timing_mutex.unlock();
-            struct video_frame output_frame = {};
-            if (count > 1) {
-                blog(LOG_INFO, "[%s] video lagged: %d", transcoder->source->id.c_str(), count);
-            }
-            if (video_output_lock_frame(transcoder->video, &output_frame, count, video_time)) {
+        }
+        struct video_frame output_frame = {};
+        if (video_output_lock_frame(transcoder->video, &output_frame, count, video_time)) {
+            if (frame) {
                 video_scaler_scale(
                         transcoder->video_scaler,
                         output_frame.data,
@@ -190,8 +192,8 @@ void SourceTranscoder::video_output_callback(void *param) {
                         frame->data,
                         frame->linesize
                 );
-                video_output_unlock_frame(transcoder->video);
             }
+            video_output_unlock_frame(transcoder->video);
         }
         transcoder->last_video_time = video_time;
         transcoder->frame_buf_mutex.unlock();
@@ -209,12 +211,11 @@ void SourceTranscoder::audio_capture_callback(void *param, obs_source_t *source,
     size_t rate = audio_output_get_sample_rate(transcoder->audio);
 
     transcoder->timing_mutex.lock();
+    if (!transcoder->timing_adjust) {
+        transcoder->timing_adjust = os_gettime_ns() - audio_data->timestamp;
+    }
     uint64_t timing_adjust = transcoder->timing_adjust;
     transcoder->timing_mutex.unlock();
-
-    if (!timing_adjust) {
-        return;
-    }
 
     transcoder->audio_buf_mutex.lock();
 
