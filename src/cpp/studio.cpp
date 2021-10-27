@@ -125,7 +125,8 @@ void Studio::startup() {
         //start switch thread
         delay_switch_thread = std::thread(&Studio::delay_switch_callback, this);
 
-        obs_set_multi_source_sync_threshold_ms(settings->multiSourceSyncThreshold);
+        obs_set_multi_source_sync_adjust_threshold_ms(settings->multiSourceSyncThreshold);
+        obs_set_multi_source_sync_max_distance_ms(settings->multiSourceSyncMaxDistance);
 
         restore();
 

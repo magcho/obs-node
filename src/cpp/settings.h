@@ -54,6 +54,7 @@ public:
     std::string timestampFontPath;
     uint32_t timestampFontHeight;
     uint32_t multiSourceSyncThreshold;
+    uint32_t multiSourceSyncMaxDistance;
     VideoSettings *video;
     AudioSettings *audio;
 };
