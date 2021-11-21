@@ -41,6 +41,7 @@ public:
     int mixers;
     bool recordEnable;
     std::string recordFilePath;
+    bool enableAbsoluteTimestamp;
 };
 
 class Settings {

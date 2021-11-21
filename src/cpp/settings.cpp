@@ -31,6 +31,7 @@ OutputSettings::OutputSettings(const Napi::Object &outputSettings) {
     mixers = NapiUtil::getIntOptional(outputSettings, "mixers").value_or(1);
     recordEnable = NapiUtil::getBooleanOptional(outputSettings, "recordEnable").value_or(false);
     recordFilePath = NapiUtil::getStringOptional(outputSettings, "recordFilePath").value_or("");
+    enableAbsoluteTimestamp = NapiUtil::getBooleanOptional(outputSettings, "enableAbsoluteTimestamp").value_or(false);
 }
 
 bool OutputSettings::equals(const std::shared_ptr<OutputSettings> &settings) {
@@ -49,7 +50,8 @@ bool OutputSettings::equals(const std::shared_ptr<OutputSettings> &settings) {
             delaySec == settings->delaySec &&
             mixers == settings->mixers &&
             recordEnable == settings->recordEnable &&
-            recordFilePath == settings->recordFilePath;
+            recordFilePath == settings->recordFilePath &&
+            enableAbsoluteTimestamp == settings->enableAbsoluteTimestamp;
 }
 
 Settings::Settings(const Napi::Object &settings) :
