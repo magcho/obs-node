@@ -142,6 +142,11 @@ void Output::start(video_t *video, audio_t *audio) {
             throw std::runtime_error("Failed to start record output");
         }
     }
+
+    // enable absolute timestamp
+    if (settings->enableAbsoluteTimestamp) {
+        obs_output_set_enable_absolute_timestamp(output, true);
+    }
 }
 
 void Output::stop() {

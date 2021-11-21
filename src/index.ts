@@ -68,6 +68,7 @@ declare namespace obs {
         mixers?: number;
         recordEnable?: boolean;
         recordFilePath?: string;
+        enableAbsoluteTimestamp?: boolean;
     }
 
     export interface Settings {
