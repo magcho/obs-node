@@ -12,7 +12,7 @@ struct DelaySwitchData {
     uint64_t timestamp;
 };
 
-#define MAX_SWITCH_DELAY 2000000000
+#define MAX_SWITCH_DELAY 5000000000
 
 std::mutex scenes_mtx;
 std::string Studio::obsPath;
