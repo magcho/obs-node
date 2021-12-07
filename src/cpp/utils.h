@@ -112,10 +112,13 @@ static inline void setCurrentPath(const std::string& path) {
     cd(path.c_str());
 }
 
-static inline void GetScaleAndCenterPos(int baseCX, int baseCY, int windowCX,
+static inline bool GetScaleAndCenterPos(int baseCX, int baseCY, int windowCX,
                                         int windowCY, int &x, int &y,
                                         float &scale)
 {
+    if (baseCX == 0 || baseCY == 0)
+        return false;
+
     double windowAspect, baseAspect;
     int newCX, newCY;
 
@@ -134,4 +137,5 @@ static inline void GetScaleAndCenterPos(int baseCX, int baseCY, int windowCX,
 
     x = windowCX / 2 - newCX / 2;
     y = windowCY / 2 - newCY / 2;
+    return true;
 }

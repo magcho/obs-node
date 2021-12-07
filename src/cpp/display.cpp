@@ -259,11 +259,15 @@ void Display::displayCallback(void *displayPtr, uint32_t cx, uint32_t cy) {
             int x, y;
             int newCX, newCY;
             float scale;
-            GetScaleAndCenterPos(source_width, source_height, dp->width, dp->height, x, y, scale);
-            newCX = int(scale * float(source_width));
-            newCY = int(scale * float(source_height));
-            gs_ortho(0.0f, float(source_width), 0.0f, float(source_height), -1.0f, 1.0f);
-            gs_set_viewport(x, y, newCX, newCY);
+            if (GetScaleAndCenterPos(source_width, source_height, dp->width, dp->height, x, y, scale)) {
+                newCX = int(scale * float(source_width));
+                newCY = int(scale * float(source_height));
+                gs_ortho(0.0f, float(source_width), 0.0f, float(source_height), -1.0f, 1.0f);
+                gs_set_viewport(x, y, newCX, newCY);
+            } else {
+                gs_ortho(0.0f, float(source_width), 0.0f, float(source_height), -1.0f, 1.0f);
+            }
+
         } else {
             gs_ortho(0.0f, (float) base_width, 0.0f, (float) base_height, -1, 1);
         }

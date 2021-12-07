@@ -351,9 +351,13 @@ void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
     int x, y;
     uint32_t newCX, newCY;
     float scale;
-    GetScaleAndCenterPos(frame->width, frame->height, voi->width, voi->height, x, y ,scale);
-    newCX = scale * frame->width;
-    newCY = scale * frame->height;
+    if (GetScaleAndCenterPos(frame->width, frame->height, voi->width, voi->height, x, y ,scale)) {
+        newCX = scale * frame->width;
+        newCY = scale * frame->height;
+    } else {
+        newCX = voi->width;
+        newCY = voi->height;
+    }
 
     struct video_scale_info src = {
             .format = frame->format,
