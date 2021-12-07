@@ -5,6 +5,7 @@
 #include <thread>
 #include <obs.h>
 #include <graphics/graphics.h>
+#include "utils.h"
 
 class Display {
 

@@ -8,30 +8,6 @@
 #include <Dwmapi.h>
 #endif
 
-static inline void GetScaleAndCenterPos(int baseCX, int baseCY, int windowCX,
-                                        int windowCY, int &x, int &y,
-                                        float &scale)
-{
-    double windowAspect, baseAspect;
-    int newCX, newCY;
-
-    windowAspect = double(windowCX) / double(windowCY);
-    baseAspect = double(baseCX) / double(baseCY);
-
-    if (windowAspect > baseAspect) {
-        scale = float(windowCY) / float(baseCY);
-        newCX = int(double(windowCY) * baseAspect);
-        newCY = windowCY;
-    } else {
-        scale = float(windowCX) / float(baseCX);
-        newCX = windowCX;
-        newCY = int(float(windowCX) / baseAspect);
-    }
-
-    x = windowCX / 2 - newCX / 2;
-    y = windowCY / 2 - newCY / 2;
-}
-
 #ifdef _WIN32
 enum class SystemWorkerMessage : uint32_t
 {
