@@ -2,6 +2,7 @@
 #include "source.h"
 #include <media-io/video-frame.h>
 #include <util/platform.h>
+#include "utils.h"
 
 #define VIDEO_BUFFER_SIZE 1000000000 // nanoseconds
 #define VIDEO_JUMP_THRESHOLD 2000000000 // nanoseconds
@@ -346,6 +347,18 @@ void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
         destroy_video_scaler();
     }
     const struct video_output_info *voi = video_output_get_info(video);
+
+    int x, y;
+    uint32_t newCX, newCY;
+    float scale;
+    if (GetScaleAndCenterPos(frame->width, frame->height, voi->width, voi->height, x, y ,scale)) {
+        newCX = scale * frame->width;
+        newCY = scale * frame->height;
+    } else {
+        newCX = voi->width;
+        newCY = voi->height;
+    }
+
     struct video_scale_info src = {
             .format = frame->format,
             .width = frame->width,
@@ -355,8 +368,8 @@ void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
     };
     struct video_scale_info dest = {
             .format = voi->format,
-            .width = voi->width,
-            .height = voi->height,
+            .width = newCX,
+            .height = newCY,
             .range = VIDEO_RANGE_DEFAULT,
             .colorspace = VIDEO_CS_DEFAULT
     };
