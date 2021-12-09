@@ -1,14 +1,41 @@
 #include "source_transcoder.h"
 #include "source.h"
+#include "utils.h"
 #include <media-io/video-frame.h>
 #include <util/platform.h>
-#include "utils.h"
 
 #define VIDEO_BUFFER_SIZE 1000000000 // nanoseconds
 #define VIDEO_JUMP_THRESHOLD 2000000000 // nanoseconds
 #define AUDIO_BUFFER_SIZE 2000000000 // nanoseconds
 #define AUDIO_SMOOTH_THRESHOLD 70000000 // nanoseconds
 #define AUDIO_TIMESTAMP_BUFFER_SIZE 500000000 // nanoseconds，a litter smaller than AUDIO_BUFFER_SIZE - VIDEO_BUFFER_SIZE
+
+static inline enum gs_color_format convert_video_format(enum video_format format) {
+    switch (format) {
+        case VIDEO_FORMAT_RGBA:
+            return GS_RGBA;
+        case VIDEO_FORMAT_BGRA:
+        case VIDEO_FORMAT_I40A:
+        case VIDEO_FORMAT_I42A:
+        case VIDEO_FORMAT_YUVA:
+        case VIDEO_FORMAT_AYUV:
+            return GS_BGRA;
+        default:
+            return GS_BGRX;
+    }
+}
+
+extern "C" bool init_gpu_conversion(uint32_t texture_width[MAX_AV_PLANES],
+                         uint32_t texture_height[MAX_AV_PLANES],
+                         enum gs_color_format texture_formats[MAX_AV_PLANES],
+                         int *channel_count,
+                         const struct obs_source_frame *frame);
+
+extern "C" bool update_frame_texrender(int width,
+                                       int height,
+                                       const struct obs_source_frame *frame,
+                                       gs_texture_t *tex[MAX_AV_PLANES],
+                                       gs_texrender_t *texrender);
 
 struct ts_info {
     uint64_t start;
@@ -19,18 +46,39 @@ static inline uint64_t uint64_diff(uint64_t ts1, uint64_t ts2) {
     return (ts1 < ts2) ? (ts2 - ts1) : (ts1 - ts2);
 }
 
+static void draw_frame_texture(const gs_texrender_t *texrender) {
+    gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+    gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
+    gs_technique_begin(tech);
+    gs_technique_begin_pass(tech, 0);
+
+    gs_texture_t *frame_texture = gs_texrender_get_texture(texrender);
+    gs_eparam_t *param = gs_effect_get_param_by_name(effect, "image");
+    gs_effect_set_texture(param, frame_texture);
+
+    gs_draw_sprite(frame_texture, 0, 0, 0);
+
+    gs_technique_end_pass(tech);
+    gs_technique_end(tech);
+}
+
 SourceTranscoder::SourceTranscoder() :
         source(nullptr),
         output(nullptr),
         video(nullptr),
         frame_buf(),
         frame_buf_mutex(),
-        video_scaler(nullptr),
+        frame_textures(),
+        frame_texrender(nullptr),
+        video_texrender(nullptr),
+        video_stagesurface(nullptr),
+        texture_width(0),
+        texture_height(0),
+        texture_format(),
         last_video_time(0),
         last_frame_ts(0),
         video_stop(false),
         video_thread(),
-        last_video_scale(),
         audio(nullptr),
         audio_buf(),
         audio_buf_mutex(),
@@ -106,9 +154,27 @@ void SourceTranscoder::stop() {
     video_output_stop(video);
     video_output_close(video);
 
-    if (video_scaler) {
-        destroy_video_scaler();
+    obs_enter_graphics();
+    if (video_stagesurface) {
+        gs_stagesurface_destroy(video_stagesurface);
+        gs_texrender_destroy(video_texrender);
+        video_stagesurface = nullptr;
+        video_texrender = nullptr;
     }
+
+    for (auto &frame_texture : frame_textures) {
+        if (frame_texture) {
+            gs_texture_destroy(frame_texture);
+            frame_texture = nullptr;
+        }
+    }
+
+    if (frame_texrender) {
+        gs_texrender_destroy(frame_texrender);
+        frame_texrender = nullptr;
+    }
+
+    obs_leave_graphics();
 
     reset_video();
 
@@ -133,11 +199,6 @@ void SourceTranscoder::source_media_get_frame_callback(void *param, calldata_t *
 
     if (frame->format == VIDEO_FORMAT_NONE) {
         return;
-    }
-
-    // create video scaler after first frame is received
-    if (!transcoder->video_scaler || transcoder->video_scale_changed(frame)) {
-        transcoder->create_video_scaler(frame);
     }
 
     obs_source_frame *new_frame = obs_source_frame_create(frame->format, frame->width, frame->height);
@@ -176,28 +237,66 @@ void SourceTranscoder::video_output_callback(void *param) {
             }
         }
 
-        transcoder->frame_buf_mutex.lock();
-        auto frame = transcoder->get_closest_frame(video_time);
-        if (frame) {
-            transcoder->timing_mutex.lock();
-            transcoder->timing_adjust = video_time - frame->timestamp;
-            transcoder->timing_mutex.unlock();
+        obs_enter_graphics();
+
+        int output_width = transcoder->source->output->width;
+        int output_height = transcoder->source->output->height;
+
+        // initialize textrender
+        if (!transcoder->video_texrender) {
+            transcoder->video_texrender = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+            transcoder->video_stagesurface = gs_stagesurface_create(output_width, output_height, GS_BGRA);
         }
-        struct video_frame output_frame = {};
-        if (video_output_lock_frame(transcoder->video, &output_frame, count, video_time)) {
+
+        // render texture
+        gs_texrender_reset(transcoder->video_texrender);
+        if (gs_texrender_begin(transcoder->video_texrender, output_width, output_height)) {
+            gs_blend_state_push();
+            gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
+
+            // render background
+            vec4 background = {};
+            vec4_zero(&background);
+            gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
+
+            // render frame
+            transcoder->frame_buf_mutex.lock();
+            auto frame = transcoder->get_closest_frame(video_time);
             if (frame) {
-                video_scaler_scale(
-                        transcoder->video_scaler,
-                        output_frame.data,
-                        output_frame.linesize,
-                        frame->data,
-                        frame->linesize
-                );
+                transcoder->timing_mutex.lock();
+                transcoder->timing_adjust = video_time - frame->timestamp;
+                transcoder->timing_mutex.unlock();
+                transcoder->render_frame(frame, output_width, output_height);
             }
-            video_output_unlock_frame(transcoder->video);
+            transcoder->frame_buf_mutex.unlock();
+
+            // copy rendered texture to output frame
+            struct video_frame output_frame = {};
+            if (video_output_lock_frame(transcoder->video, &output_frame, count, video_time)) {
+                gs_stage_texture(transcoder->video_stagesurface, gs_texrender_get_texture(transcoder->video_texrender));
+                uint8_t *video_data = nullptr;
+                uint32_t video_linesize;
+                if (gs_stagesurface_map(transcoder->video_stagesurface, &video_data, &video_linesize)) {
+                    uint32_t linesize = output_frame.linesize[0];
+                    for (uint32_t i = 0; i < output_height; i++) {
+                        uint32_t dst_offset = linesize * i;
+                        uint32_t src_offset = video_linesize * i;
+                        memcpy(output_frame.data[0] +
+                               dst_offset,
+                               video_data + src_offset,
+                               linesize);
+                    }
+                    gs_stagesurface_unmap(transcoder->video_stagesurface);
+                }
+                video_output_unlock_frame(transcoder->video);
+            }
+
+            gs_blend_state_pop();
+            gs_texrender_end(transcoder->video_texrender);
         }
+
+        obs_leave_graphics();
         transcoder->last_video_time = video_time;
-        transcoder->frame_buf_mutex.unlock();
     }
 }
 
@@ -331,61 +430,6 @@ bool SourceTranscoder::audio_output_callback(
     return result;
 }
 
-bool SourceTranscoder::video_scale_changed(obs_source_frame *frame) {
-    bool result = frame->format != last_video_scale.format
-        || frame->width != last_video_scale.width
-        || frame->height != last_video_scale.height
-        || frame->full_range != (last_video_scale.range == VIDEO_RANGE_FULL);
-    if (result) {
-        blog(LOG_INFO, "[%s] video scale changed", source->id.c_str());
-    }
-    return result;
-}
-
-void SourceTranscoder::create_video_scaler(obs_source_frame *frame) {
-    if (video_scaler) {
-        destroy_video_scaler();
-    }
-    const struct video_output_info *voi = video_output_get_info(video);
-
-    int x, y;
-    uint32_t newCX, newCY;
-    float scale;
-    if (GetScaleAndCenterPos(frame->width, frame->height, voi->width, voi->height, x, y ,scale)) {
-        newCX = scale * frame->width;
-        newCY = scale * frame->height;
-    } else {
-        newCX = voi->width;
-        newCY = voi->height;
-    }
-
-    struct video_scale_info src = {
-            .format = frame->format,
-            .width = frame->width,
-            .height = frame->height,
-            .range = frame->full_range ? VIDEO_RANGE_FULL : VIDEO_RANGE_DEFAULT,
-            .colorspace = VIDEO_CS_DEFAULT
-    };
-    struct video_scale_info dest = {
-            .format = voi->format,
-            .width = newCX,
-            .height = newCY,
-            .range = VIDEO_RANGE_DEFAULT,
-            .colorspace = VIDEO_CS_DEFAULT
-    };
-
-    int ret = video_scaler_create(&video_scaler, &dest, &src, VIDEO_SCALE_FAST_BILINEAR);
-    if (ret != VIDEO_SCALER_SUCCESS) {
-        throw std::runtime_error("Failed to create video scaler.");
-    }
-    last_video_scale = src;
-}
-
-void SourceTranscoder::destroy_video_scaler() {
-    video_scaler_destroy(video_scaler);
-    video_scaler = nullptr;
-}
-
 obs_source_frame *SourceTranscoder::get_closest_frame(uint64_t video_time) {
     if (!frame_buf.size) {
         return nullptr;
@@ -434,4 +478,60 @@ void SourceTranscoder::reset_audio() {
     }
     audio_time = 0;
     last_audio_time = 0;
+}
+
+void SourceTranscoder::render_frame(obs_source_frame *frame, int output_width, int output_height) {
+    const enum gs_color_format format = convert_video_format(frame->format);
+    if (frame_textures[0] && (
+            frame->width != texture_width ||
+            frame->height != texture_height ||
+            format != texture_format)) {
+        blog(LOG_INFO, "Recreate frame texture");
+        for (auto &frame_texture : frame_textures) {
+            if (frame_texture) {
+                gs_texture_destroy(frame_texture);
+                frame_texture = nullptr;
+            }
+        }
+        if (frame_texrender) {
+            gs_texrender_destroy(frame_texrender);
+            frame_texrender = nullptr;
+        }
+    }
+
+    if (!frame_textures[0]) {
+        uint32_t texture_widths[MAX_AV_PLANES] = {};
+        uint32_t texture_heights[MAX_AV_PLANES] = {};
+        enum gs_color_format texture_formats[MAX_AV_PLANES] = {};
+        int channel_count = 0;
+        if (!init_gpu_conversion(texture_widths, texture_heights, texture_formats, &channel_count, frame)) {
+            blog(LOG_ERROR, "Failed to create gpu_conversion");
+            return;
+        }
+        for (int c = 0; c < channel_count; ++c)
+            frame_textures[c] = gs_texture_create(
+                    texture_widths[c],
+                    texture_heights[c],
+                    texture_formats[c], 1, nullptr,
+                    GS_DYNAMIC);
+        frame_texrender = gs_texrender_create(format, GS_ZS_NONE);
+        texture_width = frame->width;
+        texture_height = frame->height;
+        texture_format = format;
+    }
+
+    // update frame texture
+    update_frame_texrender(frame->width, frame->height, frame, frame_textures, frame_texrender);
+
+    // render frame texture center alignment
+    int x, y;
+    int newCX, newCY;
+    float scale;
+    GetScaleAndCenterPos(frame->width, frame->height, output_width, output_height, x, y, scale);
+    newCX = int(scale * float(frame->width));
+    newCY = int(scale * float(frame->height));
+    gs_ortho(0.0f, (float) frame->width, 0.0f, (float) frame->height, -100.0f, 100.0f);
+    gs_set_viewport(x, y, newCX, newCY);
+
+    draw_frame_texture(frame_texrender);
 }
