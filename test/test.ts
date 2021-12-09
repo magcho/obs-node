@@ -111,13 +111,26 @@ const sources: Source[] = [
             url: 'rtmp://host.docker.internal/live/source1',
             hardwareDecoder: false,
             playOnActive: false,
+            output: {
+                url: 'rtmp://host.docker.internal/preview/source1',
+                hardwareEnable: false,
+                width: 320,
+                height: 180,
+                keyintSec: 1,
+                rateControl: 'CBR',
+                preset: 'ultrafast',
+                profile: 'baseline',
+                tune: 'zerolatency',
+                videoBitrateKbps: 1000,
+                audioBitrateKbps: 64,
+            }
         }
     },
     {
         sceneId: 'scene2',
         sourceId: 'source2',
         settings: {
-            name: 'source1',
+            name: 'source2',
             type: 'media',
             url: 'clips/test.mp4',
             hardwareDecoder: false,
@@ -125,8 +138,8 @@ const sources: Source[] = [
             output: {
                 url: 'rtmp://host.docker.internal/preview/source2',
                 hardwareEnable: false,
-                width: 640,
-                height: 360,
+                width: 320,
+                height: 180,
                 keyintSec: 1,
                 rateControl: 'CBR',
                 preset: 'ultrafast',
